@@ -1,0 +1,88 @@
+# Python相关
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# 虚拟环境
+venv/
+env/
+ENV/
+
+# IDE相关
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# 系统文件
+.DS_Store
+Thumbs.db
+*.tmp
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件和缓存
+tmp/
+temp/
+cache/
+.cache/
+
+# 测试相关
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# 项目特定的临时文件
+/tmp/
+test_report.json
+progress.json
+*.backup_*
+
+# libwebp二进制文件（如果添加的话）
+libwebp/
+
+# 视频和图像文件（避免意外提交大文件）
+*.mp4
+*.mkv
+*.avi
+*.mov
+*.wmv
+*.flv
+*.webm
+*.m4v
+*.jpg
+*.jpeg
+*.png
+*.gif
+*.bmp
+*.webp
+*.tar
+*.tar.gz
+*.zip
+
+# 配置文件（包含敏感路径信息）
+config.py 
