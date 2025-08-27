@@ -12,9 +12,10 @@ from utils import setup_logging
 class NASConnector:
     """通过tailscale网络连接访问NAS的工具类"""
     
-    def __init__(self, nas_ip="100.74.107.59", ssh_port=22, logger=None):
+    def __init__(self, nas_ip="100.74.107.59", ssh_port=22, ssh_user="root", logger=None):
         self.nas_ip = nas_ip
         self.ssh_port = ssh_port
+        self.ssh_user = ssh_user
         self.logger = logger or setup_logging()
         
         # 尝试不同的连接方式
@@ -166,7 +167,7 @@ class NASConnector:
                 'scp',
                 '-o', 'ConnectTimeout=30',
                 '-o', 'StrictHostKeyChecking=no',
-                f'root@{self.nas_ip}:{remote_path}',
+                f'{self.ssh_user}@{self.nas_ip}:{remote_path}',
                 local_path
             ]
             
@@ -190,7 +191,7 @@ class NASConnector:
                 try:
                     rsync_command = [
                         'rsync', '-avz', '--timeout=300',
-                        f'root@{self.nas_ip}:{remote_path}',
+                        f'{self.ssh_user}@{self.nas_ip}:{remote_path}',
                         local_path
                     ]
                     
@@ -223,7 +224,7 @@ class NASConnector:
             remote_dir = os.path.dirname(remote_path)
             mkdir_command = [
                 'ssh',
-                f'root@{self.nas_ip}',
+                f'{self.ssh_user}@{self.nas_ip}',
                 f'mkdir -p "{remote_dir}"'
             ]
             
@@ -233,7 +234,7 @@ class NASConnector:
             scp_command = [
                 'scp',
                 local_path,
-                f'root@{self.nas_ip}:{remote_path}'
+                f'{self.ssh_user}@{self.nas_ip}:{remote_path}'
             ]
             
             self.logger.debug(f"SCP上传命令: {' '.join(scp_command)}")
@@ -261,7 +262,7 @@ class NASConnector:
         try:
             check_command = [
                 'ssh',
-                f'root@{self.nas_ip}',
+                f'{self.ssh_user}@{self.nas_ip}',
                 f'test -f "{remote_path}" && echo "exists" || echo "not_found"'
             ]
             
@@ -286,7 +287,7 @@ class NASConnector:
         try:
             size_command = [
                 'ssh',
-                f'root@{self.nas_ip}',
+                f'{self.ssh_user}@{self.nas_ip}',
                 f'stat -c%s "{remote_path}"'
             ]
             
