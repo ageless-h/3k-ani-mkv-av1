@@ -67,9 +67,20 @@ def diagnose_network():
                 print(f"✅ 端口 {port:5d} ({service:10s}) - 开放")
                 open_ports.append(port)
             else:
-                print(f"❌ 端口 {port:5d} ({service:10s}) - 关闭/过滤")
+                # 解析错误代码
+                error_msgs = {
+                    11: "连接被拒绝(Connection refused)",
+                    111: "连接被拒绝(Connection refused)", 
+                    10061: "连接被拒绝(Windows)",
+                    110: "连接超时(Connection timed out)",
+                    10060: "连接超时(Windows)",
+                    113: "无路由到主机(No route to host)",
+                    10051: "网络不可达(Windows)"
+                }
+                error_desc = error_msgs.get(result, f"未知错误({result})")
+                print(f"❌ 端口 {port:5d} ({service:10s}) - {error_desc}")
         except Exception as e:
-            print(f"❌ 端口 {port:5d} ({service:10s}) - 错误: {str(e)}")
+            print(f"❌ 端口 {port:5d} ({service:10s}) - 异常: {str(e)}")
     
     # 3. SSH详细测试
     print("\n3. SSH连接详细测试")
@@ -120,7 +131,6 @@ def diagnose_network():
     print("-" * 30)
     
     try:
-        import socket
         result = socket.gethostbyaddr(nas_ip)
         print(f"✅ 反向DNS解析成功: {result[0]}")
     except:
@@ -142,10 +152,18 @@ def diagnose_network():
     
     if not open_ports:
         print("❌ 未检测到任何开放端口")
-        print("   建议：")
-        print("   1. 检查NAS是否在线")
-        print("   2. 检查Tailscale连接")
-        print("   3. 检查NAS防火墙设置")
+        print("   分析：错误代码11表示'连接被拒绝'，说明网络是通的，但NAS拒绝了连接")
+        print("   这通常表示：")
+        print("   1. ✅ 网络连通性正常（Tailscale工作正常）")
+        print("   2. ❌ NAS上的服务没有启动或配置问题")
+        print("   3. ❌ NAS防火墙阻止了连接")
+        print("")
+        print("   建议解决方案：")
+        print("   1. 在NAS上检查SSH服务: systemctl status ssh")
+        print("   2. 启动SSH服务: systemctl start ssh")
+        print("   3. 检查SSH配置: /etc/ssh/sshd_config")
+        print("   4. 检查NAS防火墙: iptables -L 或 ufw status")
+        print("   5. 检查SSH是否监听所有接口: netstat -tlnp | grep :22")
     elif 22 not in open_ports:
         print("⚠️  SSH端口22不可达")
         print("   建议：")
