@@ -17,6 +17,7 @@ from utils import (
 from video_processor import VideoProcessor
 from image_processor import ImageProcessor
 from archive_manager import ArchiveManager
+from network_utils import NASConnector, LocalProcessor
 
 class AnimationProcessor:
     def __init__(self):
@@ -31,6 +32,10 @@ class AnimationProcessor:
         self.video_processor = VideoProcessor(self.logger)
         self.image_processor = ImageProcessor(self.logger)
         self.archive_manager = ArchiveManager(self.logger)
+        
+        # 初始化网络连接器
+        self.nas_connector = NASConnector(logger=self.logger)
+        self.local_processor = LocalProcessor(self.nas_connector, self.logger)
         
         # 进度文件
         self.progress_file = os.path.join(self.config.TEMP_DIR, "progress.json")
@@ -90,6 +95,10 @@ class AnimationProcessor:
         all_frames = []
         current_counter = frame_counter
         
+        # 创建本地视频缓存目录
+        local_video_dir = os.path.join(temp_images_dir, "videos")
+        os.makedirs(local_video_dir, exist_ok=True)
+        
         for video_path in tqdm(video_files, desc="处理视频"):
             try:
                 self.logger.info(f"处理视频: {video_path}")
@@ -100,8 +109,14 @@ class AnimationProcessor:
                     self.logger.info(f"视频已处理，跳过: {video_path}")
                     continue
                 
-                # 提取帧
-                frames = self.video_processor.extract_all_frames(video_path, temp_images_dir)
+                # 先下载视频到本地
+                local_video_path = self.download_video_to_local(video_path, local_video_dir)
+                if not local_video_path:
+                    self.logger.error(f"视频下载失败，跳过: {video_path}")
+                    continue
+                
+                # 使用本地路径提取帧
+                frames = self.video_processor.extract_all_frames(local_video_path, temp_images_dir)
                 
                 if frames:
                     # 处理图像
@@ -131,6 +146,14 @@ class AnimationProcessor:
                 else:
                     self.logger.warning(f"未能从视频提取帧: {video_path}")
                 
+                # 清理本地视频文件
+                try:
+                    if os.path.exists(local_video_path):
+                        os.remove(local_video_path)
+                        self.logger.debug(f"清理本地视频: {local_video_path}")
+                except Exception as e:
+                    self.logger.warning(f"清理本地视频失败: {str(e)}")
+                
                 # 检查磁盘空间
                 if not check_free_space(self.config.TEMP_DIR, self.config.MIN_FREE_SPACE_GB):
                     self.logger.warning("磁盘空间不足，停止当前批次")
@@ -140,6 +163,46 @@ class AnimationProcessor:
                 self.logger.error(f"处理视频出错 {video_path}: {str(e)}")
         
         return all_frames, current_counter
+    
+    def download_video_to_local(self, remote_video_path: str, local_dir: str) -> str:
+        """下载视频文件到本地"""
+        try:
+            video_filename = os.path.basename(remote_video_path)
+            local_video_path = os.path.join(local_dir, video_filename)
+            
+            # 如果本地已存在，直接返回
+            if os.path.exists(local_video_path):
+                self.logger.debug(f"本地视频已存在: {local_video_path}")
+                return local_video_path
+            
+            # 检查远程文件是否存在
+            if not self.nas_connector.check_remote_file_exists(remote_video_path):
+                self.logger.error(f"远程视频文件不存在: {remote_video_path}")
+                return None
+            
+            # 获取文件大小信息
+            file_size = self.nas_connector.get_file_size(remote_video_path)
+            if file_size > 0:
+                file_size_mb = file_size / (1024 * 1024)
+                self.logger.info(f"开始下载视频: {video_filename} ({file_size_mb:.1f} MB)")
+            
+            # 检查本地空间
+            required_space_gb = (file_size / (1024**3)) + 1  # 额外1GB安全空间
+            if not check_free_space(local_dir, required_space_gb):
+                self.logger.error(f"本地空间不足，无法下载: {video_filename}")
+                return None
+            
+            # 下载文件
+            if self.nas_connector.copy_file_from_nas(remote_video_path, local_video_path):
+                self.logger.info(f"视频下载成功: {local_video_path}")
+                return local_video_path
+            else:
+                self.logger.error(f"视频下载失败: {remote_video_path}")
+                return None
+                
+        except Exception as e:
+            self.logger.error(f"下载视频出错: {str(e)}")
+            return None
     
     def process_series(self, series_name: str, video_files: List[str]) -> bool:
         """处理单个动画系列"""
@@ -257,6 +320,17 @@ class AnimationProcessor:
         """运行主处理流程"""
         try:
             self.logger.info("开始动画处理流程")
+            
+            # 检查网络连接
+            self.logger.info("检查NAS网络连接...")
+            if not self.nas_connector.test_connection():
+                self.logger.error("无法连接到NAS，请检查tailscale连接")
+                return
+            
+            # 检查tailscale状态
+            devices = self.nas_connector.check_tailscale_status()
+            if devices:
+                self.logger.info(f"Tailscale连接正常，发现设备: {list(devices.keys())}")
             
             # 加载视频文件列表
             if os.path.exists(self.config.FILELIST_PATH):
