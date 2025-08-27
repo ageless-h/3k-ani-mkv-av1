@@ -18,6 +18,15 @@ class UgreenNASConfig:
     # 绿联云NAS信息
     NAS_IP = "100.74.107.59"
     NAS_NAME = "dh4300plus-0e7a"
+    UGREEN_LINK_ID = "dh4300plus-0e7a-8NzJ"
+    UGREEN_LINK_URL = "https://ug.link/dh4300plus-0e7a-8NzJ"
+    
+    # 可能的连接方式
+    CONNECTION_METHODS = {
+        "tailscale": "100.74.107.59",
+        "ugreen_link": "ug.link/dh4300plus-0e7a-8NzJ",
+        "local_lan": None  # 需要检测局域网IP
+    }
     
     # 路径配置
     SOURCE_DIR = "/volume1/db/5_video/archive"
@@ -53,9 +62,65 @@ class UgreenNASConfig:
         "-f", "matroska"
     ]
 
+def detect_best_connection():
+    """检测最佳的连接方式"""
+    import subprocess
+    import socket
+    
+    print("🔍 检测最佳连接方式...")
+    
+    # 1. 测试Tailscale连接
+    print("\n1. 测试Tailscale连接 (100.74.107.59)")
+    try:
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(3)
+        result = sock.connect_ex(("100.74.107.59", 22))
+        sock.close()
+        
+        if result == 0:
+            print("✅ Tailscale SSH端口可达")
+            return "tailscale", "100.74.107.59"
+        else:
+            print(f"❌ Tailscale SSH端口不可达 (错误{result})")
+    except Exception as e:
+        print(f"❌ Tailscale连接测试失败: {str(e)}")
+    
+    # 2. 尝试检测局域网IP
+    print("\n2. 尝试检测局域网连接")
+    # 常见的绿联云局域网IP段
+    common_ips = [
+        "192.168.1.100", "192.168.1.200", "192.168.1.10",
+        "192.168.0.100", "192.168.0.200", "192.168.0.10",
+        "10.0.0.100", "10.0.0.200"
+    ]
+    
+    for ip in common_ips:
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(1)
+            result = sock.connect_ex((ip, 22))
+            sock.close()
+            
+            if result == 0:
+                print(f"✅ 发现局域网NAS: {ip}")
+                return "local_lan", ip
+        except:
+            pass
+    
+    print("❌ 未找到局域网连接")
+    
+    # 3. UGREENlink连接（需要特殊处理）
+    print("\n3. UGREENlink远程连接")
+    print("⚠️  UGREENlink需要通过Web界面或专用客户端访问")
+    print(f"   Web地址: {UgreenNASConfig.UGREEN_LINK_URL}")
+    
+    return None, None
+
 def detect_ssh_user(nas_ip="100.74.107.59"):
     """自动检测可用的SSH用户名"""
     import subprocess
+    
+    print(f"\n🔑 检测SSH用户名 ({nas_ip})")
     
     for user in UgreenNASConfig.POSSIBLE_SSH_USERS:
         try:
@@ -73,9 +138,11 @@ def detect_ssh_user(nas_ip="100.74.107.59"):
                 # SSH连接成功但认证失败，说明用户名是对的
                 print(f"⚠️  用户 {user} 存在但需要密码认证")
                 return user
+            else:
+                print(f"❌ 用户 {user} - 连接失败")
                 
         except Exception as e:
-            print(f"测试用户 {user} 失败: {str(e)}")
+            print(f"❌ 测试用户 {user} 失败: {str(e)}")
     
     print("❌ 未找到可用的SSH用户")
     return None
@@ -160,28 +227,62 @@ class Config:
 
 if __name__ == "__main__":
     print("🔍 绿联云NAS配置检测")
-    print("=" * 40)
+    print("=" * 50)
+    print(f"设备信息: {UgreenNASConfig.NAS_NAME}")
+    print(f"UGREENlink ID: {UgreenNASConfig.UGREEN_LINK_ID}")
+    print(f"远程访问: {UgreenNASConfig.UGREEN_LINK_URL}")
+    print("=" * 50)
     
-    # 检测SSH用户
-    ssh_user = detect_ssh_user()
+    # 检测最佳连接方式
+    connection_type, nas_ip = detect_best_connection()
     
-    if ssh_user:
-        print(f"\n📂 检测视频目录...")
-        video_paths = test_video_paths(ssh_user)
+    if connection_type and nas_ip:
+        print(f"\n✅ 最佳连接方式: {connection_type} ({nas_ip})")
         
-        if video_paths:
-            print(f"\n✅ 推荐配置:")
-            print(f"   SSH用户: {ssh_user}")
-            print(f"   视频目录: {video_paths[0]}")
+        # 检测SSH用户
+        ssh_user = detect_ssh_user(nas_ip)
+        
+        if ssh_user:
+            print(f"\n📂 检测视频目录...")
+            video_paths = test_video_paths(ssh_user, nas_ip)
             
-            # 生成配置文件
-            config_content = generate_ugreen_config(ssh_user, video_paths[0])
-            
-            print(f"\n📝 生成的config.py内容:")
-            print("-" * 40)
-            print(config_content)
-            
+            if video_paths:
+                print(f"\n✅ 推荐配置:")
+                print(f"   连接方式: {connection_type}")
+                print(f"   NAS地址: {nas_ip}")
+                print(f"   SSH用户: {ssh_user}")
+                print(f"   视频目录: {video_paths[0]}")
+                
+                # 生成配置文件
+                config_content = generate_ugreen_config(ssh_user, video_paths[0])
+                config_content = config_content.replace(
+                    f'NAS_IP = "{UgreenNASConfig.NAS_IP}"',
+                    f'NAS_IP = "{nas_ip}"  # {connection_type} connection'
+                )
+                
+                print(f"\n📝 生成的config.py内容:")
+                print("-" * 50)
+                print(config_content)
+                
+                # 保存配置到文件
+                try:
+                    with open("config_generated.py", "w", encoding="utf-8") as f:
+                        f.write(config_content)
+                    print(f"\n💾 配置已保存到: config_generated.py")
+                    print("   使用方法: cp config_generated.py config.py")
+                except Exception as e:
+                    print(f"\n❌ 保存配置失败: {str(e)}")
+                
+            else:
+                print("\n⚠️  未找到标准视频目录，请手动确认路径")
         else:
-            print("\n⚠️  未找到标准视频目录，请手动确认路径")
+            print("\n❌ SSH用户检测失败，可能需要:")
+            print("   1. 在绿联云Web界面启用SSH服务")
+            print("   2. 设置SSH用户权限")
+            print("   3. 检查防火墙设置")
     else:
-        print("\n❌ 请先在绿联云Web界面启用SSH服务并设置用户权限") 
+        print("\n❌ 无法建立网络连接，请检查:")
+        print("   1. Tailscale连接状态")
+        print("   2. 局域网连接")
+        print("   3. 绿联云SSH服务是否启用")
+        print(f"   4. 也可尝试通过UGREENlink访问: {UgreenNASConfig.UGREEN_LINK_URL}") 
