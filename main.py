@@ -324,8 +324,9 @@ class AnimationProcessor:
             # 检查网络连接
             self.logger.info("检查NAS网络连接...")
             if not self.nas_connector.test_connection():
-                self.logger.error("无法连接到NAS，请检查tailscale连接")
-                return
+                self.logger.warning("无法连接到NAS，可能需要配置SSH密钥")
+                self.logger.info("提示：请先运行 'ssh-keygen -t rsa' 和 'ssh-copy-id root@100.74.107.59'")
+                self.logger.info("尝试继续运行，如果文件下载失败会自动跳过...")
             
             # 检查tailscale状态
             devices = self.nas_connector.check_tailscale_status()
@@ -384,7 +385,10 @@ class AnimationProcessor:
         
         finally:
             # 清理残留的临时文件
-            self.archive_manager.cleanup_temp_files(self.config.TEMP_DIR)
+            try:
+                self.archive_manager.cleanup_temp_files(self.config.TEMP_DIR)
+            except Exception as e:
+                self.logger.error(f"清理临时文件出错: {str(e)}")
 
 def main():
     """主入口函数"""

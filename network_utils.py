@@ -19,24 +19,56 @@ class NASConnector:
     def test_connection(self) -> bool:
         """测试与NAS的网络连接"""
         try:
-            # 尝试ping NAS
-            result = subprocess.run(
-                ['ping', '-c', '1', '-W', '3', self.nas_ip],
-                capture_output=True,
-                text=True,
-                timeout=5
-            )
+            import socket
             
-            if result.returncode == 0:
+            # 使用socket测试连接（更适合容器环境）
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(5)
+            
+            # 尝试连接SSH端口22
+            result = sock.connect_ex((self.nas_ip, 22))
+            sock.close()
+            
+            if result == 0:
                 self.logger.info(f"NAS连接正常: {self.nas_ip}")
                 return True
             else:
-                self.logger.warning(f"NAS连接失败: {self.nas_ip}")
+                self.logger.warning(f"NAS连接失败: {self.nas_ip} (端口22不可达)")
+                # 尝试简单的SSH测试
+                try:
+                    test_result = subprocess.run(
+                        ['ssh', '-o', 'ConnectTimeout=5', '-o', 'BatchMode=yes', 
+                         f'root@{self.nas_ip}', 'echo "test"'],
+                        capture_output=True,
+                        timeout=10
+                    )
+                    if test_result.returncode == 0:
+                        self.logger.info(f"SSH连接正常: {self.nas_ip}")
+                        return True
+                except:
+                    pass
                 return False
                 
         except Exception as e:
             self.logger.error(f"网络连接测试出错: {str(e)}")
-            return False
+            # 如果网络测试失败，尝试直接测试SSH
+            try:
+                self.logger.info("回退到SSH连接测试...")
+                test_result = subprocess.run(
+                    ['ssh', '-o', 'ConnectTimeout=3', '-o', 'BatchMode=yes',
+                     f'root@{self.nas_ip}', 'echo "test"'],
+                    capture_output=True,
+                    timeout=8
+                )
+                if test_result.returncode == 0:
+                    self.logger.info(f"SSH连接正常: {self.nas_ip}")
+                    return True
+                else:
+                    self.logger.warning(f"SSH连接失败: {test_result.stderr.decode()}")
+                    return False
+            except Exception as ssh_e:
+                self.logger.error(f"SSH测试也失败: {str(ssh_e)}")
+                return False
     
     def check_tailscale_status(self) -> dict:
         """检查tailscale连接状态"""
