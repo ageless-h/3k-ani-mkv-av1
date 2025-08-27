@@ -12,63 +12,85 @@ from utils import setup_logging
 class NASConnector:
     """通过tailscale网络连接访问NAS的工具类"""
     
-    def __init__(self, nas_ip="100.74.107.59", logger=None):
+    def __init__(self, nas_ip="100.74.107.59", ssh_port=22, logger=None):
         self.nas_ip = nas_ip
+        self.ssh_port = ssh_port
         self.logger = logger or setup_logging()
+        
+        # 尝试不同的连接方式
+        self.connection_methods = [
+            'ssh',      # SSH/SCP
+            'smb',      # Samba共享
+            'nfs',      # NFS挂载
+            'ftp',      # FTP
+            'http'      # HTTP/WebDAV
+        ]
         
     def test_connection(self) -> bool:
         """测试与NAS的网络连接"""
         try:
             import socket
             
-            # 使用socket测试连接（更适合容器环境）
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(5)
+            self.logger.info(f"测试与NAS的网络连接: {self.nas_ip}")
             
-            # 尝试连接SSH端口22
-            result = sock.connect_ex((self.nas_ip, 22))
-            sock.close()
+            # 首先检测可用服务
+            services = self.detect_available_services()
+            if services:
+                self.logger.info(f"检测到NAS服务: {services}")
+                if 'ssh' in services:
+                    self.ssh_port = services['ssh']
+                    self.logger.info(f"SSH服务可用: {self.nas_ip}:{self.ssh_port}")
+                    return True
+                else:
+                    self.logger.warning(f"SSH不可用，但检测到其他服务: {list(services.keys())}")
+                    return True  # 至少网络是通的
             
-            if result == 0:
-                self.logger.info(f"NAS连接正常: {self.nas_ip}")
-                return True
-            else:
-                self.logger.warning(f"NAS连接失败: {self.nas_ip} (端口22不可达)")
-                # 尝试简单的SSH测试
+            # 如果服务检测失败，进行详细的网络诊断
+            self.logger.info("进行详细网络诊断...")
+            
+            # 方法1: 基础socket测试
+            try:
+                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                sock.settimeout(5)
+                result = sock.connect_ex((self.nas_ip, 22))
+                sock.close()
+                
+                if result == 0:
+                    self.logger.info(f"SSH端口可达: {self.nas_ip}:22")
+                    return True
+                else:
+                    self.logger.warning(f"SSH端口不可达，错误代码: {result}")
+            except Exception as e:
+                self.logger.warning(f"Socket连接失败: {str(e)}")
+            
+            # 方法2: 尝试其他常见端口确认网络连通性
+            test_ports = [80, 443, 8080, 8443, 21, 23]
+            for port in test_ports:
                 try:
-                    test_result = subprocess.run(
-                        ['ssh', '-o', 'ConnectTimeout=5', '-o', 'BatchMode=yes', 
-                         f'root@{self.nas_ip}', 'echo "test"'],
-                        capture_output=True,
-                        timeout=10
-                    )
-                    if test_result.returncode == 0:
-                        self.logger.info(f"SSH连接正常: {self.nas_ip}")
-                        return True
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(2)
+                    result = sock.connect_ex((self.nas_ip, port))
+                    sock.close()
+                    
+                    if result == 0:
+                        self.logger.info(f"网络连通，端口{port}可达")
+                        self.logger.warning("网络正常但SSH端口22不可达，可能是防火墙或SSH配置问题")
+                        return False  # 网络通但SSH不通
                 except:
                     pass
-                return False
+            
+            self.logger.error(f"完全无法连接到NAS: {self.nas_ip}")
+            self.logger.info("可能的原因：")
+            self.logger.info("1. NAS的SSH服务未启动")
+            self.logger.info("2. 防火墙阻止了SSH连接")
+            self.logger.info("3. Tailscale路由配置问题")
+            self.logger.info("4. SSH服务监听地址配置问题")
+            
+            return False
                 
         except Exception as e:
             self.logger.error(f"网络连接测试出错: {str(e)}")
-            # 如果网络测试失败，尝试直接测试SSH
-            try:
-                self.logger.info("回退到SSH连接测试...")
-                test_result = subprocess.run(
-                    ['ssh', '-o', 'ConnectTimeout=3', '-o', 'BatchMode=yes',
-                     f'root@{self.nas_ip}', 'echo "test"'],
-                    capture_output=True,
-                    timeout=8
-                )
-                if test_result.returncode == 0:
-                    self.logger.info(f"SSH连接正常: {self.nas_ip}")
-                    return True
-                else:
-                    self.logger.warning(f"SSH连接失败: {test_result.stderr.decode()}")
-                    return False
-            except Exception as ssh_e:
-                self.logger.error(f"SSH测试也失败: {str(ssh_e)}")
-                return False
+            return False
     
     def check_tailscale_status(self) -> dict:
         """检查tailscale连接状态"""
@@ -102,12 +124,48 @@ class NASConnector:
             self.logger.error(f"Tailscale状态检查出错: {str(e)}")
             return {}
     
+    def detect_available_services(self) -> dict:
+        """检测NAS上可用的服务"""
+        services = {}
+        
+        # 检测各种服务端口
+        service_ports = {
+            'ssh': [22, 2222, 2200, 2022],
+            'ftp': [21],
+            'http': [80, 8080],
+            'https': [443, 8443],
+            'smb': [139, 445],
+            'nfs': [111, 2049]
+        }
+        
+        for service, ports in service_ports.items():
+            for port in ports:
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.settimeout(2)
+                    result = sock.connect_ex((self.nas_ip, port))
+                    sock.close()
+                    
+                    if result == 0:
+                        services[service] = port
+                        self.logger.debug(f"发现{service}服务: {self.nas_ip}:{port}")
+                        break
+                except:
+                    pass
+        
+        return services
+    
     def copy_file_from_nas(self, remote_path: str, local_path: str) -> bool:
         """从NAS复制单个文件到本地"""
         try:
-            # 尝试使用scp
+            # 确保本地目录存在
+            os.makedirs(os.path.dirname(local_path), exist_ok=True)
+            
+            # 方法1: 尝试使用scp（推荐）
             scp_command = [
                 'scp',
+                '-o', 'ConnectTimeout=30',
+                '-o', 'StrictHostKeyChecking=no',
                 f'root@{self.nas_ip}:{remote_path}',
                 local_path
             ]
@@ -121,11 +179,37 @@ class NASConnector:
                 timeout=300  # 5分钟超时
             )
             
-            if result.returncode == 0:
-                self.logger.info(f"文件复制成功: {remote_path} -> {local_path}")
+            if result.returncode == 0 and os.path.exists(local_path):
+                file_size = os.path.getsize(local_path) / (1024 * 1024)
+                self.logger.info(f"文件复制成功: {os.path.basename(remote_path)} ({file_size:.1f} MB)")
                 return True
             else:
-                self.logger.error(f"SCP复制失败: {result.stderr}")
+                self.logger.warning(f"SCP复制失败: {result.stderr}")
+                
+                # 方法2: 尝试使用rsync（如果有的话）
+                try:
+                    rsync_command = [
+                        'rsync', '-avz', '--timeout=300',
+                        f'root@{self.nas_ip}:{remote_path}',
+                        local_path
+                    ]
+                    
+                    self.logger.debug(f"尝试RSYNC: {' '.join(rsync_command)}")
+                    
+                    rsync_result = subprocess.run(
+                        rsync_command,
+                        capture_output=True,
+                        text=True,
+                        timeout=300
+                    )
+                    
+                    if rsync_result.returncode == 0 and os.path.exists(local_path):
+                        self.logger.info(f"RSYNC复制成功: {remote_path}")
+                        return True
+                    
+                except Exception as rsync_e:
+                    self.logger.debug(f"RSYNC失败: {str(rsync_e)}")
+                
                 return False
                 
         except Exception as e:

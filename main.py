@@ -323,15 +323,19 @@ class AnimationProcessor:
             
             # 检查网络连接
             self.logger.info("检查NAS网络连接...")
-            if not self.nas_connector.test_connection():
-                self.logger.warning("无法连接到NAS，可能需要配置SSH密钥")
-                self.logger.info("提示：请先运行 'ssh-keygen -t rsa' 和 'ssh-copy-id root@100.74.107.59'")
-                self.logger.info("尝试继续运行，如果文件下载失败会自动跳过...")
+            connection_ok = self.nas_connector.test_connection()
             
             # 检查tailscale状态
             devices = self.nas_connector.check_tailscale_status()
             if devices:
                 self.logger.info(f"Tailscale连接正常，发现设备: {list(devices.keys())}")
+                if not connection_ok:
+                    self.logger.info("虽然网络测试失败，但tailscale状态正常，尝试继续运行...")
+                    connection_ok = True
+            
+            if not connection_ok:
+                self.logger.warning("网络连接测试失败，但程序将继续运行")
+                self.logger.info("如果视频下载失败，请检查网络连接或SSH配置")
             
             # 加载视频文件列表
             if os.path.exists(self.config.FILELIST_PATH):
