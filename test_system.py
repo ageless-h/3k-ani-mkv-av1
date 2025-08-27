@@ -292,15 +292,9 @@ class SystemTester:
         except Exception as e:
             self.log_test("归档管理器", False, str(e))
     
-        def test_main_processor(self):
+    def test_main_processor(self):
         """测试主处理器"""
         try:
-            # 导入主处理器
-            from main import AnimationProcessor
-            
-            # 创建测试实例（使用默认配置）
-            # 由于我们只测试逻辑，不需要真实文件
-            
             # 测试视频组织功能（直接测试函数逻辑）
             video_files = [
                 "/volume1/db/5_video/archive/动画A/第01集.mkv",
