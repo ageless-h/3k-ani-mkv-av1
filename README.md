@@ -1,169 +1,191 @@
-# 3K动画视频处理系统
+# 3K Animation MKV-AV1 Processing System
 
-这是一个专门用于批量处理动画视频的Python系统，能够将视频转换为AV1编码的MKV格式，提取场景关键帧，压缩为WebP格式，并打包归档。
+一个专业的动画视频处理系统，将动画视频转换为 MKV+AV1 格式，并提取场景帧制作成 WebP 图像归档。
 
-## 功能特点
+## 🎯 功能特性
 
-- **硬件加速视频转换**: 使用NVIDIA GPU (4090) 进行AV1硬件编码
-- **智能场景检测**: 使用PySceneDetect自动检测场景切换点
-- **高效图像处理**: 批量调整图像大小并转换为WebP格式
-- **分批处理**: 支持大型动画系列的分批处理，避免存储空间不足
-- **进度恢复**: 支持中断后从上次位置继续处理
-- **完整日志**: 详细的处理日志和错误记录
+- **视频转换**: 批量转换动画视频为 MKV+AV1 格式，支持 NVIDIA GPU 硬件加速
+- **场景检测**: 使用 PySceneDetect 提取每个场景的中间帧
+- **图像处理**: 自动调整图像尺寸并转换为 WebP 格式（90% 质量）
+- **智能归档**: 按动画系列自动组织和打包图像为 tar.gz 归档
+- **网络传输**: 通过 Tailscale 网络连接 NAS 进行文件传输
+- **批处理**: 支持大型动画系列的分批处理
+- **恢复功能**: 支持中断后从上次进度继续处理
 
-## 系统要求
+## 📁 项目结构
 
-### 硬件要求
-- NVIDIA GPU (支持AV1编码，如RTX 4090)
-- 至少90GB内存
-- 至少50GB临时存储空间
+```
+3k-animation-mkv-av1/
+├── src/                    # 源代码
+│   ├── __init__.py        # 包初始化
+│   ├── main.py            # 主程序入口
+│   ├── video_processor.py # 视频处理模块
+│   ├── image_processor.py # 图像处理模块
+│   ├── archive_manager.py # 归档管理模块
+│   ├── network_utils.py   # 网络连接工具
+│   └── utils.py           # 通用工具函数
+├── config/                # 配置文件
+│   ├── config.py          # 主配置文件
+│   └── config_example.py  # 配置模板
+├── tools/                 # 工具脚本
+│   ├── check_environment.py    # 环境检查
+│   ├── diagnose_nas.py         # NAS连接诊断
+│   ├── ugreen_nas_config.py    # 绿联云配置检测
+│   └── install_libwebp.sh      # libwebp安装脚本
+├── doc/                   # 文档
+│   ├── README.md          # 项目说明
+│   ├── 部署指南.md        # 部署指南
+│   ├── 绿联云SSH启用指南.md # SSH配置指南
+│   └── fix_nas_ssh.md     # SSH问题修复
+├── log/                   # 日志文件
+├── requirements.txt       # Python依赖
+└── run.sh                # 启动脚本
+```
 
-### 软件要求
-- Linux系统
-- Python 3.8+
-- FFmpeg (支持av1_nvenc)
-- libwebp (用于WebP转换)
+## 🚀 快速开始
 
-## 安装依赖
+### 1. 环境要求
+
+- **操作系统**: Linux (推荐 Ubuntu 20.04+)
+- **Python**: 3.8+
+- **GPU**: NVIDIA RTX 4090 (支持 AV1 硬件编码)
+- **网络**: Tailscale VPN 连接
+- **存储**: 至少 50GB 临时空间
+
+### 2. 安装依赖
 
 ```bash
+# 克隆项目
+git clone https://github.com/ageless-h/3k-ani-mkv-av1.git
+cd 3k-animation-mkv-av1
+
 # 安装Python依赖
 pip install -r requirements.txt
 
-# 确保FFmpeg支持AV1硬件编码
-ffmpeg -encoders | grep av1_nvenc
-
-# 下载libwebp并放置到项目目录
-# 将libwebp二进制文件放置到 ./libwebp/bin/cwebp
+# 安装libwebp (可选，提升WebP压缩性能)
+bash tools/install_libwebp.sh
 ```
 
-## 配置
+### 3. 配置系统
 
-编辑 `config.py` 文件中的路径和参数：
+```bash
+# 复制配置模板
+cp config/config_example.py config/config.py
+
+# 根据你的环境修改配置
+vim config/config.py
+
+# 或使用自动配置工具 (适用于绿联云用户)
+python3 tools/ugreen_nas_config.py
+```
+
+### 4. 环境检查
+
+```bash
+# 检查系统环境
+python3 tools/check_environment.py
+
+# 检查NAS连接
+python3 tools/diagnose_nas.py
+```
+
+### 5. 运行程序
+
+```bash
+# 使用启动脚本 (推荐)
+bash run.sh
+
+# 或直接运行
+export PYTHONPATH="${PYTHONPATH}:$(pwd)"
+python3 -c "from src.main import main; main()"
+```
+
+## ⚙️ 配置说明
+
+主要配置项目在 `config/config.py` 中：
 
 ```python
-# 主要路径配置
-SOURCE_DIR = "/volume1/db/5_video/archive"          # 源视频目录
-OUTPUT_DIR = "/volume1/db/1_ai/data/image/animation" # 输出归档目录
-VIDEO_OUTPUT_DIR = "/volume1/db/1_ai/data/video/animation" # 转换后视频目录
-FILELIST_PATH = "/root/3k-animation-mkv-av1/code/filelist.txt" # 视频列表文件
-
-# 处理参数
-MAX_EPISODES_PER_BATCH = 30  # 每批处理的最大集数
-MAX_IMAGE_SIZE = 2048        # 图像最大尺寸
-WEBP_QUALITY = 90           # WebP质量
+class Config:
+    # NAS连接配置
+    NAS_IP = "100.74.107.59"        # NAS IP地址
+    SSH_USER = "root"               # SSH用户名
+    SSH_PORT = 22                   # SSH端口
+    
+    # 路径配置
+    SOURCE_DIR = "/volume1/db/5_video/archive"    # NAS源视频目录
+    OUTPUT_DIR = "/root/output/animation"         # 本地输出目录
+    TEMP_DIR = "/tmp/animation_processing"        # 临时目录
+    
+    # 处理参数
+    MAX_EPISODES_PER_BATCH = 30     # 每批最大集数
+    MAX_WORKERS = 4                 # 并发工作线程
+    WEBP_QUALITY = 90              # WebP质量
+    TARGET_SIZE = 2048             # 图像目标尺寸
 ```
 
-## 使用方法
+## 🔧 工具脚本
 
-### 1. 准备视频文件列表（可选）
+- **`tools/check_environment.py`**: 全面的环境检查工具
+- **`tools/diagnose_nas.py`**: NAS网络连接诊断
+- **`tools/ugreen_nas_config.py`**: 绿联云NAS自动配置
+- **`tools/install_libwebp.sh`**: 自动安装libwebp工具
 
-如果有预先准备的视频文件列表，将其放置到 `FILELIST_PATH` 指定的位置：
+## 📊 性能优化
 
+- **GPU加速**: 自动使用 NVIDIA RTX 4090 进行 AV1 硬件编码
+- **并发处理**: 支持多线程并发处理提升效率
+- **智能缓存**: 本地缓存机制减少网络传输
+- **分批处理**: 大型系列自动分批避免内存溢出
+
+## 🐛 故障排除
+
+### 网络连接问题
 ```bash
-# 示例文件内容
-/volume1/db/5_video/archive/动画A/第01集.mkv
-/volume1/db/5_video/archive/动画A/第02集.mkv
-/volume1/db/5_video/archive/动画B/S01E01.mp4
+# 检查Tailscale状态
+tailscale status
+
+# 诊断NAS连接
+python3 tools/diagnose_nas.py
 ```
 
-### 2. 运行处理程序
-
+### GPU编码问题
 ```bash
-python main.py
+# 检查GPU状态
+nvidia-smi
+
+# 检查AV1编码支持
+ffmpeg -encoders | grep av1_nvenc
 ```
 
-### 3. 监控处理进度
-
-程序会在 `/tmp/animation_processing/` 目录下创建日志文件：
-
+### 权限问题
 ```bash
-# 查看实时日志
-tail -f /tmp/animation_processing/animation_processor.log
+# 检查SSH密钥
+ssh-copy-id root@100.74.107.59
 
-# 查看进度文件
-cat /tmp/animation_processing/progress.json
+# 检查文件权限
+ls -la /tmp/animation_processing
 ```
 
-## 处理流程
+## 📝 开发
 
-1. **视频组织**: 按源目录的一级子文件夹分组动画系列
-2. **批次规划**: 根据集数决定单批次或多批次处理策略
-3. **视频处理**: 
-   - 场景检测和关键帧提取
-   - 图像调整大小（最大2048x2048）
-   - WebP格式转换（90%质量）
-4. **文件命名**: 按系列重新编号（000001.webp, 000002.webp...）
-5. **归档打包**: 创建tar.gz压缩包
-6. **清理工作**: 删除临时文件，释放空间
+项目采用模块化设计，主要模块：
 
-## 输出格式
+- **`src/main.py`**: 主程序逻辑和工作流编排
+- **`src/video_processor.py`**: 视频转换和场景检测
+- **`src/image_processor.py`**: 图像处理和WebP转换
+- **`src/archive_manager.py`**: 文件归档和压缩管理
+- **`src/network_utils.py`**: NAS网络连接和文件传输
+- **`src/utils.py`**: 通用工具函数
 
-### 单系列（≤30集）
-```
-动画名称.tar.gz
-```
+## 📄 许可证
 
-### 多系列（>30集）
-```
-动画名称_part01of05.tar.gz
-动画名称_part02of05.tar.gz
-...
-```
+MIT License
 
-## 错误处理
+## 🤝 贡献
 
-- **磁盘空间不足**: 程序会自动监控空间，不足时暂停处理
-- **视频损坏**: 跳过无法处理的视频文件
-- **处理中断**: 支持从上次中断位置继续处理
-- **硬件错误**: 自动回退到软件处理方案
+欢迎提交 Issue 和 Pull Request！
 
-## 注意事项
+---
 
-1. **存储空间**: 确保有足够的临时存储空间（建议至少50GB）
-2. **网络连接**: 确保NAS网络连接稳定
-3. **定期清理**: 处理完成后会自动清理临时文件
-4. **备份重要**: 建议在处理前备份重要视频文件
-
-## 故障排除
-
-### 常见问题
-
-1. **FFmpeg AV1编码错误**
-   ```bash
-   # 检查GPU支持
-   nvidia-smi
-   ffmpeg -encoders | grep av1_nvenc
-   ```
-
-2. **WebP转换失败**
-   ```bash
-   # 检查libwebp路径
-   ls -la ./libwebp/bin/cwebp
-   ./libwebp/bin/cwebp -version
-   ```
-
-3. **磁盘空间问题**
-   ```bash
-   # 检查磁盘使用情况
-   df -h
-   du -sh /tmp/animation_processing/
-   ```
-
-## 性能优化
-
-- 根据实际硬件调整 `MAX_WORKERS` 参数
-- 根据磁盘性能调整 `MAX_EPISODES_PER_BATCH`
-- 根据质量要求调整 `WEBP_QUALITY`
-
-## 日志级别
-
-- `INFO`: 主要处理步骤
-- `DEBUG`: 详细处理信息
-- `WARNING`: 非致命错误
-- `ERROR`: 严重错误
-
-查看特定级别的日志：
-```bash
-grep "ERROR" /tmp/animation_processing/animation_processor.log
-``` 
+**作者**: ageless-h  
+**项目**: https://github.com/ageless-h/3k-ani-mkv-av1.git 

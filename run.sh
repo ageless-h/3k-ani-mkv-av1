@@ -1,67 +1,63 @@
 #!/bin/bash
 
-# 3K动画视频处理系统启动脚本
+# 3K Animation MKV-AV1 Processing System
+# 启动脚本
 
-echo "=== 3K动画视频处理系统 ==="
-echo "开始检查系统环境..."
+echo "🎬 3K动画视频处理系统"
+echo "=================================="
 
-# 检查Python版本
+# 检查Python环境
+echo "检查Python环境..."
 if ! command -v python3 &> /dev/null; then
-    echo "错误: 未找到python3"
+    echo "❌ Python3 未安装"
     exit 1
 fi
 
-echo "Python版本: $(python3 --version)"
+# 检查虚拟环境
+if [[ "$VIRTUAL_ENV" == "" ]]; then
+    echo "⚠️  建议在虚拟环境中运行"
+fi
 
-# 检查FFmpeg和AV1支持
-if ! command -v ffmpeg &> /dev/null; then
-    echo "错误: 未找到ffmpeg"
+# 检查依赖包
+echo "检查依赖包..."
+python3 -c "import cv2, scenedetect, PIL, numpy, tqdm" 2>/dev/null
+if [ $? -ne 0 ]; then
+    echo "❌ 缺少必要的依赖包，请运行: pip install -r requirements.txt"
     exit 1
 fi
 
-echo "FFmpeg版本: $(ffmpeg -version | head -n 1)"
-
-# 检查AV1硬件编码支持
-if ! ffmpeg -encoders 2>/dev/null | grep -q av1_nvenc; then
-    echo "警告: 未检测到AV1硬件编码支持(av1_nvenc)"
-    echo "将使用软件编码，速度会较慢"
+# 检查配置文件
+if [ ! -f "config/config.py" ]; then
+    echo "❌ 配置文件不存在，请复制 config/config_example.py 为 config/config.py 并修改配置"
+    exit 1
 fi
 
-# 检查GPU
-if command -v nvidia-smi &> /dev/null; then
-    echo "GPU状态:"
-    nvidia-smi --query-gpu=name,utilization.gpu,memory.used,memory.total --format=csv,noheader,nounits
-else
-    echo "警告: 未检测到NVIDIA GPU"
+# 检查工具依赖
+echo "检查系统环境..."
+python3 tools/check_environment.py
+
+# 运行环境检查
+if [ $? -ne 0 ]; then
+    echo "⚠️  环境检查发现问题，但程序将继续运行"
 fi
 
-# 检查磁盘空间
-echo "磁盘空间检查:"
-df -h / | tail -n 1
-df -h /tmp | tail -n 1
+# 创建日志目录
+mkdir -p log
 
-# 检查libwebp
-if [ -f "./libwebp/bin/cwebp" ]; then
-    echo "libwebp: 已找到"
-    ./libwebp/bin/cwebp -version 2>/dev/null || echo "libwebp版本检查失败"
-else
-    echo "警告: 未找到libwebp，将使用Pillow备用方案"
-fi
+# 启动主程序
+echo "启动主程序..."
+echo "=================================="
 
-# 检查依赖
-echo "检查Python依赖..."
-if ! python3 -c "import cv2, scenedetect, PIL, numpy, tqdm" 2>/dev/null; then
-    echo "安装Python依赖..."
-    pip3 install -r requirements.txt
-fi
-
-echo ""
-echo "环境检查完成！"
-echo "开始处理动画视频..."
-echo ""
+# 添加项目根目录到Python路径
+export PYTHONPATH="${PYTHONPATH}:$(pwd)"
 
 # 运行主程序
-python3 main.py
+python3 -c "
+import sys
+sys.path.insert(0, '.')
+from src.main import main
+main()
+"
 
-echo ""
+echo "=================================="
 echo "处理完成！" 

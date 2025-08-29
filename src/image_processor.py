@@ -3,8 +3,10 @@ import subprocess
 from pathlib import Path
 from typing import List
 from PIL import Image, ImageOps
-from config import Config
-from utils import setup_logging, sanitize_filename
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config.config import Config
+from src.utils import setup_logging, sanitize_filename
 
 class ImageProcessor:
     def __init__(self, logger=None):

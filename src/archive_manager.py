@@ -3,8 +3,10 @@ import tarfile
 import shutil
 from pathlib import Path
 from typing import List, Dict
-from config import Config
-from utils import setup_logging, check_free_space, sanitize_filename, get_disk_usage
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config.config import Config
+from src.utils import setup_logging, check_free_space, sanitize_filename, get_disk_usage
 
 class ArchiveManager:
     def __init__(self, logger=None):

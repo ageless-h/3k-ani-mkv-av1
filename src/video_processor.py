@@ -5,8 +5,10 @@ from pathlib import Path
 from typing import List, Tuple, Optional
 from scenedetect import VideoManager, SceneManager
 from scenedetect.detectors import ContentDetector
-from config import Config
-from utils import setup_logging, format_time, sanitize_filename
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from config.config import Config
+from src.utils import setup_logging, format_time, sanitize_filename
 
 class VideoProcessor:
     def __init__(self, logger=None):

@@ -7,7 +7,9 @@ import urllib.request
 import urllib.parse
 from typing import List, Optional
 from pathlib import Path
-from utils import setup_logging
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from src.utils import setup_logging
 
 class NASConnector:
     """通过tailscale网络连接访问NAS的工具类"""

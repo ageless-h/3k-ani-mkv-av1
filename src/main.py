@@ -9,15 +9,18 @@ from typing import List, Dict, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
-from config import Config
-from utils import (
+import sys
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from config.config import Config
+from src.utils import (
     setup_logging, load_video_list, save_progress, load_progress,
     check_free_space, get_disk_usage, is_video_file, sanitize_filename
 )
-from video_processor import VideoProcessor
-from image_processor import ImageProcessor
-from archive_manager import ArchiveManager
-from network_utils import NASConnector, LocalProcessor
+from src.video_processor import VideoProcessor
+from src.image_processor import ImageProcessor
+from src.archive_manager import ArchiveManager
+from src.network_utils import NASConnector, LocalProcessor
 
 class AnimationProcessor:
     def __init__(self):
