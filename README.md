@@ -44,7 +44,29 @@
 
 ## 🚀 快速开始
 
-### 1. 环境要求
+### 方法一：一键部署 (推荐)
+
+```bash
+# 克隆项目
+git clone https://github.com/ageless-h/3k-ani-mkv-av1.git
+cd 3k-animation-mkv-av1
+
+# 运行一键部署脚本
+python3 deploy.py
+```
+
+部署脚本会自动完成：
+- ✅ 系统环境检查
+- ✅ 创建Python虚拟环境
+- ✅ 安装所有依赖包
+- ✅ 安装libwebp工具
+- ✅ 设置目录结构
+- ✅ 运行配置向导
+- ✅ 创建系统服务 (可选)
+
+### 方法二：手动安装
+
+#### 1. 环境要求
 
 - **操作系统**: Linux (推荐 Ubuntu 20.04+)
 - **Python**: 3.8+
@@ -52,7 +74,7 @@
 - **网络**: Tailscale VPN 连接
 - **存储**: 至少 50GB 临时空间
 
-### 2. 安装依赖
+#### 2. 安装依赖
 
 ```bash
 # 克隆项目
@@ -66,20 +88,21 @@ pip install -r requirements.txt
 bash tools/install_libwebp.sh
 ```
 
-### 3. 配置系统
+#### 3. 配置系统
 
 ```bash
-# 复制配置模板
-cp config/config_example.py config/config.py
+# 方式1: 使用配置向导 (推荐)
+python3 tools/setup_wizard.py
 
-# 根据你的环境修改配置
+# 方式2: 手动配置
+cp config/config_example.py config/config.py
 vim config/config.py
 
-# 或使用自动配置工具 (适用于绿联云用户)
+# 方式3: 绿联云自动配置
 python3 tools/ugreen_nas_config.py
 ```
 
-### 4. 环境检查
+#### 4. 环境检查
 
 ```bash
 # 检查系统环境
@@ -89,7 +112,7 @@ python3 tools/check_environment.py
 python3 tools/diagnose_nas.py
 ```
 
-### 5. 运行程序
+#### 5. 运行程序
 
 ```bash
 # 使用启动脚本 (推荐)
