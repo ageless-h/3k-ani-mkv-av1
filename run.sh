@@ -28,7 +28,8 @@ fi
 
 # 检查配置文件
 if [ ! -f "config/config.py" ]; then
-    echo "❌ 配置文件不存在，请复制 config/config_example.py 为 config/config.py 并修改配置"
+    echo "❌ 配置文件不存在，魔搭模式应该有默认配置"
+    echo "请检查config/config.py是否存在，或运行 python3 deploy.py 重新部署"
     exit 1
 fi
 

@@ -225,38 +225,61 @@ class EnvironmentChecker:
         if not cwebp_found:
             self.log_warning("libwebp (cwebp) 未找到，将使用Pillow备用方案")
     
-    def check_network_paths(self):
-        """检查网络路径"""
-        print("\n=== 网络路径检查 ===")
+    def check_modelscope_setup(self):
+        """检查魔搭社区配置"""
+        print("\n=== 魔搭社区配置检查 ===")
         
         from config import Config
         config = Config()
         
+        # 检查本地工作目录
         paths_to_check = [
-            ("源视频目录", config.SOURCE_DIR),
             ("输出目录", config.OUTPUT_DIR),
-            ("视频输出目录", config.VIDEO_OUTPUT_DIR)
+            ("视频输出目录", config.VIDEO_OUTPUT_DIR),
+            ("临时目录", config.TEMP_DIR),
+            ("魔搭缓存目录", config.MODELSCOPE_CACHE_DIR),
+            ("下载目录", config.DOWNLOAD_DIR),
+            ("上传目录", config.UPLOAD_DIR)
         ]
         
         for name, path in paths_to_check:
             if os.path.exists(path):
-                self.log_success(f"{name}: {path} (可访问)")
+                self.log_success(f"{name}: {path} (存在)")
             else:
-                self.log_warning(f"{name}: {path} (不可访问)")
+                self.log_info(f"{name}: {path} (将自动创建)")
         
-        # 检查文件列表
-        if os.path.exists(config.FILELIST_PATH):
-            self.log_success(f"视频列表文件: {config.FILELIST_PATH} (存在)")
-            
-            # 统计视频数量
-            try:
-                with open(config.FILELIST_PATH, 'r', encoding='utf-8') as f:
-                    videos = [line.strip() for line in f if line.strip()]
-                    self.log_info(f"列表中包含 {len(videos)} 个视频文件")
-            except Exception as e:
-                self.log_warning(f"读取视频列表失败: {str(e)}")
+        # 检查魔搭Token
+        if hasattr(config, 'MODELSCOPE_TOKEN') and config.MODELSCOPE_TOKEN:
+            if config.MODELSCOPE_TOKEN.startswith('ms-'):
+                self.log_success("魔搭Token配置正确")
+            else:
+                self.log_warning("魔搭Token格式可能不正确")
         else:
-            self.log_warning(f"视频列表文件不存在: {config.FILELIST_PATH}")
+            self.log_warning("未配置魔搭Token")
+        
+        # 检查modelscope CLI
+        try:
+            result = subprocess.run(['modelscope', '--version'], 
+                                  capture_output=True, text=True, timeout=10)
+            if result.returncode == 0:
+                self.log_success("ModelScope CLI已安装")
+            else:
+                self.log_warning("ModelScope CLI未正确安装")
+        except FileNotFoundError:
+            self.log_warning("ModelScope CLI未安装")
+        except Exception as e:
+            self.log_warning(f"ModelScope CLI检查失败: {e}")
+        
+        # 检查是否有本地视频列表文件
+        if os.path.exists("filelist.txt"):
+            try:
+                with open("filelist.txt", 'r', encoding='utf-8') as f:
+                    videos = [line.strip() for line in f if line.strip()]
+                    self.log_info(f"本地视频列表包含 {len(videos)} 个文件")
+            except Exception as e:
+                self.log_warning(f"读取本地视频列表失败: {str(e)}")
+        else:
+            self.log_info("未找到本地视频列表，将从魔搭仓库获取")
     
     def run_all_checks(self):
         """运行所有检查"""
@@ -270,7 +293,7 @@ class EnvironmentChecker:
         self.check_ffmpeg()
         self.check_gpu()
         self.check_libwebp()
-        self.check_network_paths()
+        self.check_modelscope_setup()
         
         self.print_summary()
     
