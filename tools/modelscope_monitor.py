@@ -20,7 +20,6 @@ sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 try:
     from modelscope.hub.api import HubApi
-    from modelscope import MsDataset
     MODELSCOPE_AVAILABLE = True
 except ImportError:
     MODELSCOPE_AVAILABLE = False

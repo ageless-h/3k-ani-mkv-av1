@@ -11,7 +11,6 @@ from tqdm import tqdm
 
 try:
     from modelscope.hub.api import HubApi
-    from modelscope import MsDataset
     MODELSCOPE_AVAILABLE = True
 except ImportError:
     MODELSCOPE_AVAILABLE = False
