@@ -174,7 +174,7 @@ class ModelScopeMonitor:
         content = "|".join(data)
         return hashlib.md5(content.encode()).hexdigest()
     
-    def detect_completed_folders(self, current_structure: Dict) -> List[str]:
+    def detect_completed_folders(self, current_structure: Dict, force_all: bool = False) -> List[str]:
         """检测已完成上传的文件夹"""
         completed_folders = []
         current_time = time.time()
@@ -184,6 +184,19 @@ class ModelScopeMonitor:
             if not folder_name or folder_name == '.':
                 continue
             
+            # 检查是否已经在队列中
+            already_queued = any(item["folder"] == folder_name for item in self.processing_queue)
+            if already_queued:
+                continue
+            
+            # 如果强制模式（初始化扫描），直接添加所有有文件的文件夹
+            if force_all:
+                if folder_info["file_count"] > 0:
+                    completed_folders.append(folder_name)
+                    self.logger.info(f"初始化扫描发现文件夹: {folder_name} ({folder_info['file_count']} 文件)")
+                continue
+            
+            # 正常监控模式：检查稳定性
             # 计算当前文件夹hash
             current_hash = self.calculate_folder_hash(folder_info)
             
@@ -206,10 +219,7 @@ class ModelScopeMonitor:
             
             # 如果文件夹内容稳定超过阈值时间，认为上传完成
             if current_time - last_check_time >= self.min_folder_stable_time:
-                # 检查是否已经在队列中
-                already_queued = any(item["folder"] == folder_name for item in self.processing_queue)
-                
-                if not already_queued and folder_info["file_count"] > 0:
+                if folder_info["file_count"] > 0:
                     completed_folders.append(folder_name)
                     self.logger.info(f"检测到完成的文件夹: {folder_name}")
         
@@ -271,10 +281,13 @@ class ModelScopeMonitor:
                 break
         self.save_queue()
     
-    def monitor_once(self) -> int:
+    def monitor_once(self, force_all: bool = False) -> int:
         """执行一次监控检查"""
         try:
-            self.logger.info("开始监控检查...")
+            if force_all:
+                self.logger.info("开始初始化扫描，将所有现有文件夹加入队列...")
+            else:
+                self.logger.info("开始监控检查...")
             
             # 获取当前仓库结构
             current_structure = self.get_repository_structure()
@@ -283,7 +296,7 @@ class ModelScopeMonitor:
                 return 0
             
             # 检测完成的文件夹
-            completed_folders = self.detect_completed_folders(current_structure)
+            completed_folders = self.detect_completed_folders(current_structure, force_all)
             
             # 添加到处理队列
             for folder_name in completed_folders:
@@ -304,6 +317,11 @@ class ModelScopeMonitor:
         except Exception as e:
             self.logger.error(f"监控检查失败: {e}")
             return 0
+    
+    def initialize_queue_from_existing(self) -> int:
+        """初始化队列：扫描现有数据并全部加入队列"""
+        self.logger.info("正在执行初始化扫描，将现有所有文件夹加入处理队列...")
+        return self.monitor_once(force_all=True)
     
     def run_monitor(self):
         """运行持续监控"""
@@ -336,6 +354,8 @@ def main():
     parser.add_argument('--once', action='store_true', help='只执行一次检查')
     parser.add_argument('--queue', action='store_true', help='显示当前队列状态')
     parser.add_argument('--interval', type=int, default=300, help='监控间隔(秒)')
+    parser.add_argument('--init', action='store_true', help='初始化模式：扫描现有数据并全部加入队列')
+    parser.add_argument('--auto', action='store_true', help='自动模式：先初始化再持续监控')
     
     args = parser.parse_args()
     
@@ -352,10 +372,27 @@ def main():
                      f"({item['total_size']/(1024**3):.2f} GB) "
                      f"[优先级: {item['priority']}]")
         
+        elif args.init:
+            # 初始化模式：扫描现有数据
+            new_folders = monitor.initialize_queue_from_existing()
+            print(f"✅ 初始化完成，将 {new_folders} 个现有文件夹加入队列")
+        
         elif args.once:
             # 只执行一次检查
             new_folders = monitor.monitor_once()
             print(f"✅ 检查完成，发现 {new_folders} 个新完成的文件夹")
+        
+        elif args.auto:
+            # 自动模式：先初始化再监控
+            print("🚀 自动模式启动")
+            
+            # 步骤1：初始化扫描
+            new_folders = monitor.initialize_queue_from_existing()
+            print(f"✅ 初始化完成，将 {new_folders} 个现有文件夹加入队列")
+            
+            # 步骤2：持续监控
+            print("📡 开始持续监控新上传的文件...")
+            monitor.run_monitor()
         
         else:
             # 持续监控
