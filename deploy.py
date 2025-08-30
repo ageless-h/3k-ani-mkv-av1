@@ -161,22 +161,15 @@ class ProjectDeployer:
         return True
     
     def run_configuration_wizard(self):
-        """运行配置向导"""
-        print("\n🧙 是否运行配置向导？")
-        choice = input("运行配置向导可以帮助您快速配置项目 (y/n) [y]: ").strip().lower()
-        
-        if choice != 'n':
-            wizard_script = self.project_dir / "tools" / "setup_wizard.py"
-            if wizard_script.exists():
-                print("启动配置向导...")
-                result = subprocess.run([sys.executable, str(wizard_script)])
-                return result.returncode == 0
-            else:
-                print("❌ 未找到配置向导脚本")
-                return False
-        else:
-            print("跳过配置向导")
-            return True
+        """配置检查"""
+        print("\n✅ 配置检查")
+        print("魔搭社区模式使用默认配置，无需额外配置向导")
+        print("如需修改配置，请编辑 config/config.py")
+        print("主要配置项：")
+        print("  - MODELSCOPE_TOKEN: 魔搭社区访问令牌")
+        print("  - MAX_EPISODES_PER_BATCH: 每批处理的视频数量")
+        print("  - MIN_FREE_SPACE_GB: 最小保留磁盘空间")
+        return True
     
     def create_systemd_service(self):
         """创建systemd服务文件"""
@@ -250,8 +243,8 @@ WantedBy=multi-user.target
         print("2. 编辑配置文件:")
         print("   vim config/config.py")
         print("")
-        print("3. 运行配置向导:")
-        print("   python3 tools/setup_wizard.py")
+        print("3. 启动自动监控:")
+        print("   bash start_monitoring.sh")
         print("")
         print("4. 启动处理程序:")
         print("   bash run.sh")
