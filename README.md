@@ -1,16 +1,23 @@
-# 3K Animation MKV-AV1 Processing System
+# 3K Animation MKV-AV1 Processing System (魔搭社区版)
 
-一个专业的动画视频处理系统，将动画视频转换为 MKV+AV1 格式，并提取场景帧制作成 WebP 图像归档。
+一个专业的动画视频处理系统，基于魔搭社区进行数据管理，将动画视频转换为 MKV+AV1 格式，并提取场景帧制作成 WebP 图像归档。
 
 ## 🎯 功能特性
 
+- **云端数据流**: 基于魔搭社区的视频下载和结果上传
 - **视频转换**: 批量转换动画视频为 MKV+AV1 格式，支持 NVIDIA GPU 硬件加速
 - **场景检测**: 使用 PySceneDetect 提取每个场景的中间帧
 - **图像处理**: 自动调整图像尺寸并转换为 WebP 格式（90% 质量）
 - **智能归档**: 按动画系列自动组织和打包图像为 tar.gz 归档
-- **网络传输**: 通过 Tailscale 网络连接 NAS 进行文件传输
+- **魔搭集成**: 自动从魔搭仓库下载视频，处理后上传结果
 - **批处理**: 支持大型动画系列的分批处理
 - **恢复功能**: 支持中断后从上次进度继续处理
+
+## 🔗 魔搭仓库
+
+- **输入仓库**: [ageless/3k-animation-mkv-av1](https://www.modelscope.cn/datasets/ageless/3k-animation-mkv-av1)
+- **MKV输出**: [ageless/3k-animation-mkv-av1-output](https://www.modelscope.cn/datasets/ageless/3k-animation-mkv-av1-output)
+- **WebP输出**: [ageless/3k-animation-mkv-av1-output-webp](https://www.modelscope.cn/datasets/ageless/3k-animation-mkv-av1-output-webp)
 
 ## 📁 项目结构
 

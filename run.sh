@@ -1,9 +1,9 @@
 #!/bin/bash
 
-# 3K Animation MKV-AV1 Processing System
+# 3K Animation MKV-AV1 Processing System (魔搭社区版)
 # 启动脚本
 
-echo "🎬 3K动画视频处理系统"
+echo "🎬 3K动画视频处理系统 (魔搭社区版)"
 echo "=================================="
 
 # 检查Python环境
@@ -20,7 +20,7 @@ fi
 
 # 检查依赖包
 echo "检查依赖包..."
-python3 -c "import cv2, scenedetect, PIL, numpy, tqdm" 2>/dev/null
+python3 -c "import cv2, scenedetect, PIL, numpy, tqdm, modelscope" 2>/dev/null
 if [ $? -ne 0 ]; then
     echo "❌ 缺少必要的依赖包，请运行: pip install -r requirements.txt"
     exit 1

@@ -16,16 +16,26 @@ from .main import AnimationProcessor
 from .video_processor import VideoProcessor
 from .image_processor import ImageProcessor
 from .archive_manager import ArchiveManager
-from .network_utils import NASConnector
+from .modelscope_manager import ModelScopeManager
 from .utils import setup_logging, check_disk_space, load_file_list
+
+# 保持向后兼容，但标记为已弃用
+try:
+    from .network_utils import NASConnector
+    _NAS_AVAILABLE = True
+except ImportError:
+    _NAS_AVAILABLE = False
 
 __all__ = [
     'AnimationProcessor',
-    'VideoProcessor', 
+    'VideoProcessor',
     'ImageProcessor',
     'ArchiveManager',
-    'NASConnector',
+    'ModelScopeManager',
     'setup_logging',
     'check_disk_space',
     'load_file_list'
-] 
+]
+
+if _NAS_AVAILABLE:
+    __all__.append('NASConnector') 
