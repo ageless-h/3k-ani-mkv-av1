@@ -56,26 +56,34 @@ def test_repository_access():
     repo_id = "ageless/3k-animation-mkv-av1"
     
     try:
-        # 尝试列出仓库内容
+        # 使用正确的数据集下载命令来测试访问
         result = subprocess.run([
-            "modelscope", "ls", repo_id, "--recursive"
+            "modelscope", "download", 
+            "--dataset", repo_id,
+            "--cache_dir", "/tmp/debug_test_cache",
+            "--include", "*.txt"  # 只下载文本文件来测试
         ], capture_output=True, text=True, timeout=60)
         
         if result.returncode == 0:
-            lines = result.stdout.strip().split('\n')
-            print(f"✅ 仓库访问成功，发现 {len(lines)} 个条目")
-            
-            # 显示前10个条目
-            print("📁 仓库内容样例:")
-            for i, line in enumerate(lines[:10]):
-                print(f"  {i+1}. {line}")
-            if len(lines) > 10:
-                print(f"  ... 还有 {len(lines) - 10} 个条目")
-            
+            print("✅ 仓库访问成功")
             return True
         else:
             print(f"❌ 仓库访问失败: {result.stderr}")
-            return False
+            
+            # 尝试简化命令
+            print("🔄 尝试简化命令...")
+            result2 = subprocess.run([
+                "modelscope", "download", 
+                "--dataset", repo_id,
+                "--cache_dir", "/tmp/debug_test_cache2"
+            ], capture_output=True, text=True, timeout=60)
+            
+            if result2.returncode == 0:
+                print("✅ 简化命令成功")
+                return True
+            else:
+                print(f"❌ 简化命令也失败: {result2.stderr}")
+                return False
     except Exception as e:
         print(f"❌ 仓库访问异常: {e}")
         return False
@@ -93,12 +101,23 @@ def test_download_structure():
             import shutil
             shutil.rmtree(cache_dir)
         
-        # 下载文件结构
+        # 使用正确的数据集下载命令
         result = subprocess.run([
-            "modelscope", "download", repo_id,
+            "modelscope", "download",
+            "--dataset", repo_id,
             "--cache_dir", cache_dir,
             "--include", "**/*"
         ], capture_output=True, text=True, timeout=120)
+        
+        if result.returncode != 0:
+            print(f"⚠️  完整下载失败，尝试简化: {result.stderr}")
+            
+            # 尝试简化命令
+            result = subprocess.run([
+                "modelscope", "download",
+                "--dataset", repo_id,
+                "--cache_dir", cache_dir
+            ], capture_output=True, text=True, timeout=120)
         
         if result.returncode == 0:
             print("✅ 下载成功")
@@ -108,12 +127,21 @@ def test_download_structure():
             file_count = 0
             
             if os.path.exists(cache_dir):
+                # 查找实际的数据集目录
+                dataset_dir = cache_dir
                 for root, dirs, files in os.walk(cache_dir):
+                    if files:
+                        dataset_dir = root
+                        break
+                
+                print(f"📁 数据集目录: {dataset_dir}")
+                
+                for root, dirs, files in os.walk(dataset_dir):
                     folder_count += len(dirs)
                     for file in files:
                         file_count += 1
                         file_path = os.path.join(root, file)
-                        rel_path = os.path.relpath(file_path, cache_dir)
+                        rel_path = os.path.relpath(file_path, dataset_dir)
                         if file_count <= 5:  # 只显示前5个文件
                             file_size = os.path.getsize(file_path)
                             print(f"  📄 {rel_path} ({file_size} bytes)")

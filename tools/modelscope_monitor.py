@@ -103,27 +103,59 @@ class ModelScopeMonitor:
         try:
             self.logger.info("正在获取仓库文件结构...")
             
-            # 使用CLI获取文件列表（更可靠）
+            # 使用正确的数据集下载CLI命令
             import subprocess
+            cache_dir = "/tmp/monitor_cache"
+            
+            # 清理旧缓存
+            if os.path.exists(cache_dir):
+                import shutil
+                shutil.rmtree(cache_dir)
+            
+            # 使用数据集下载命令（根据魔搭官方文档）
             result = subprocess.run([
-                "modelscope", "download", self.repo_id,
-                "--cache_dir", "/tmp/monitor_cache",
+                "modelscope", "download", 
+                "--dataset", self.repo_id,
+                "--cache_dir", cache_dir,
                 "--include", "**/*"
             ], capture_output=True, text=True, timeout=120)
             
             if result.returncode != 0:
                 self.logger.error(f"获取仓库结构失败: {result.stderr}")
-                return {}
+                
+                # 尝试不指定include参数的方式
+                self.logger.info("尝试简化下载命令...")
+                result2 = subprocess.run([
+                    "modelscope", "download", 
+                    "--dataset", self.repo_id,
+                    "--cache_dir", cache_dir
+                ], capture_output=True, text=True, timeout=120)
+                
+                if result2.returncode != 0:
+                    self.logger.error(f"简化下载也失败: {result2.stderr}")
+                    return {}
             
             # 分析下载的文件结构
-            cache_dir = "/tmp/monitor_cache"
             repo_structure = {"folders": {}, "files": []}
             
             if os.path.exists(cache_dir):
+                # 查找实际的数据集目录（可能在子目录中）
+                dataset_dir = cache_dir
                 for root, dirs, files in os.walk(cache_dir):
+                    if files:  # 找到第一个包含文件的目录
+                        dataset_dir = root
+                        break
+                
+                self.logger.info(f"分析数据集目录: {dataset_dir}")
+                
+                for root, dirs, files in os.walk(dataset_dir):
                     for file in files:
                         file_path = os.path.join(root, file)
-                        rel_path = os.path.relpath(file_path, cache_dir)
+                        rel_path = os.path.relpath(file_path, dataset_dir)
+                        
+                        # 跳过隐藏文件和系统文件
+                        if rel_path.startswith('.') or 'git' in rel_path.lower():
+                            continue
                         
                         # 获取文件信息
                         try:
@@ -138,30 +170,43 @@ class ModelScopeMonitor:
                             # 按文件夹分组
                             folder = os.path.dirname(rel_path)
                             if folder and folder != '.':
-                                if folder not in repo_structure["folders"]:
-                                    repo_structure["folders"][folder] = {
+                                # 处理嵌套文件夹路径
+                                folder_parts = folder.split(os.sep)
+                                main_folder = folder_parts[0]  # 使用顶级文件夹作为系列名
+                                
+                                if main_folder not in repo_structure["folders"]:
+                                    repo_structure["folders"][main_folder] = {
                                         "files": [],
                                         "total_size": 0,
                                         "last_modified": 0,
                                         "file_count": 0
                                     }
                                 
-                                repo_structure["folders"][folder]["files"].append(file_info)
-                                repo_structure["folders"][folder]["total_size"] += stat.st_size
-                                repo_structure["folders"][folder]["last_modified"] = max(
-                                    repo_structure["folders"][folder]["last_modified"],
+                                repo_structure["folders"][main_folder]["files"].append(file_info)
+                                repo_structure["folders"][main_folder]["total_size"] += stat.st_size
+                                repo_structure["folders"][main_folder]["last_modified"] = max(
+                                    repo_structure["folders"][main_folder]["last_modified"],
                                     stat.st_mtime
                                 )
-                                repo_structure["folders"][folder]["file_count"] += 1
+                                repo_structure["folders"][main_folder]["file_count"] += 1
                         
                         except OSError:
                             continue
             
-            self.logger.info(f"发现 {len(repo_structure['folders'])} 个文件夹")
+            folder_count = len(repo_structure['folders'])
+            file_count = len(repo_structure['files'])
+            self.logger.info(f"发现 {folder_count} 个文件夹, {file_count} 个文件")
+            
+            # 显示前几个文件夹作为调试信息
+            for i, (folder_name, folder_info) in enumerate(list(repo_structure['folders'].items())[:3]):
+                self.logger.info(f"  📁 {folder_name}: {folder_info['file_count']} 文件, {folder_info['total_size']/(1024**2):.1f} MB")
+            
             return repo_structure
         
         except Exception as e:
             self.logger.error(f"获取仓库结构失败: {e}")
+            import traceback
+            self.logger.error(f"详细错误: {traceback.format_exc()}")
             return {}
     
     def calculate_folder_hash(self, folder_info: Dict) -> str:
