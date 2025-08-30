@@ -64,10 +64,10 @@ class AnimationProcessor:
                 series_name = path_parts[-2]  # 倒数第二个部分作为系列名
             else:
                 series_name = "未分类"
-            
-            if series_name not in series_dict:
-                series_dict[series_name] = []
-            series_dict[series_name].append(video_path)
+                
+                if series_name not in series_dict:
+                    series_dict[series_name] = []
+                series_dict[series_name].append(video_path)
         
         # 按系列大小排序，优先处理小系列
         series_dict = dict(sorted(series_dict.items(), key=lambda x: len(x[1])))
@@ -131,9 +131,9 @@ class AnimationProcessor:
                     if frames:
                         processed_frames = self.image_processor.batch_process_images(
                             frames, batch_images_dir, frame_counter
-                        )
-                        
-                        if processed_frames:
+                    )
+                    
+                    if processed_frames:
                             all_processed_frames.extend(processed_frames)
                             frame_counter += len(processed_frames)
                         
@@ -238,7 +238,7 @@ class AnimationProcessor:
             if archive_path and os.path.exists(archive_path):
                 os.remove(archive_path)
                 self.logger.info(f"已清理本地压缩包: {archive_path}")
-        
+            
         except Exception as e:
             self.logger.warning(f"清理文件失败: {e}")
     
@@ -297,16 +297,16 @@ class AnimationProcessor:
                     if batch_name in self.progress.get('completed_batches', []):
                         self.logger.info(f"批次已处理，跳过: {batch_name}")
                         continue
-                    
-                    # 检查磁盘空间
+                
+                # 检查磁盘空间
                     if not check_free_space(self.config.TEMP_DIR, self.config.MIN_FREE_SPACE_GB):
                         self.logger.error("磁盘空间不足，停止处理")
-                        break
-                    
+                    break
+                
                     # 处理批次
                     success = self.process_videos_in_batch(batch_videos, batch_name)
-                    
-                    if success:
+                
+                if success:
                         # 记录进度
                         if 'completed_batches' not in self.progress:
                             self.progress['completed_batches'] = []
@@ -317,7 +317,7 @@ class AnimationProcessor:
                         total_batches += 1
                         
                         self.logger.info(f"✅ 批次处理成功: {batch_name}")
-                    else:
+                else:
                         self.logger.error(f"❌ 批次处理失败: {batch_name}")
                     
                     # 显示进度
@@ -329,7 +329,7 @@ class AnimationProcessor:
             self.logger.info("="*50)
             
             return True
-        
+            
         except Exception as e:
             self.logger.error(f"主程序运行失败: {e}")
             return False
@@ -346,7 +346,7 @@ def main():
         else:
             print("❌ 3K动画处理任务失败!")
             return 1
-    
+        
     except KeyboardInterrupt:
         print("\n⚠️ 用户中断任务")
         return 130

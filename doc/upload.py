@@ -37,7 +37,7 @@ def upload_file(file_path: str, repo_type: str, remote_path: str = None, token: 
     if not MODELSCOPE_AVAILABLE:
         print("❌ 错误: 请安装modelscope库")
         print("安装命令: pip install modelscope")
-        return False
+            return False
     
     # 验证文件存在
     if not os.path.exists(file_path):
@@ -71,14 +71,14 @@ def upload_file(file_path: str, repo_type: str, remote_path: str = None, token: 
         api.upload_file(
             path_or_fileobj=file_path,
             path_in_repo=remote_path,
-            repo_id=repo_id,
+                    repo_id=repo_id,
             repo_type='dataset',
             commit_message=f'Upload: {os.path.basename(file_path)}'
         )
         
         print(f"✅ 上传成功!")
         print(f"   访问地址: https://www.modelscope.cn/datasets/{repo_id}")
-        return True
+                return True
     
     except Exception as e:
         print(f"❌ 上传失败: {e}")
@@ -106,8 +106,8 @@ def upload_folder(folder_path: str, repo_type: str, remote_path: str = None, tok
     # 验证仓库类型
     if repo_type not in REPOSITORIES:
         print(f"❌ 错误: 无效的仓库类型: {repo_type}")
-        return False
-    
+            return False
+        
     token = token or DEFAULT_TOKEN
     repo_id = REPOSITORIES[repo_type]
     
@@ -135,8 +135,8 @@ def upload_folder(folder_path: str, repo_type: str, remote_path: str = None, tok
         
         print(f"✅ 上传成功!")
         print(f"   访问地址: https://www.modelscope.cn/datasets/{repo_id}")
-        return True
-    
+            return True
+        
     except Exception as e:
         print(f"❌ 上传失败: {e}")
         return False
