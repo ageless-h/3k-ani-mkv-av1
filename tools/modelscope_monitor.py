@@ -103,7 +103,7 @@ class ModelScopeMonitor:
         try:
             self.logger.info("正在获取仓库文件结构...")
             
-            # 使用更高效的策略：只获取文件列表，不下载内容
+            # 使用正确的数据集下载方式
             import subprocess
             cache_dir = "/tmp/monitor_cache"
             
@@ -112,60 +112,70 @@ class ModelScopeMonitor:
                 import shutil
                 shutil.rmtree(cache_dir)
             
-            # 策略1: 尝试只下载小文件来获取结构信息
-            self.logger.info("尝试下载小文件获取结构信息...")
+            # 使用数据集下载命令，不指定include来获取完整结构
+            self.logger.info("开始下载数据集结构信息...")
             result = subprocess.run([
                 "modelscope", "download", 
                 "--dataset", self.repo_id,
-                "--cache_dir", cache_dir,
-                "--include", "*.txt"  # 只下载文本文件
-            ], capture_output=True, text=True, timeout=60)
+                "--cache_dir", cache_dir
+            ], capture_output=True, text=True, timeout=600)  # 增加到10分钟
             
             if result.returncode != 0:
-                # 策略2: 尝试下载README等文档文件
-                self.logger.info("尝试下载文档文件...")
-                result = subprocess.run([
-                    "modelscope", "download", 
-                    "--dataset", self.repo_id,
-                    "--cache_dir", cache_dir,
-                    "--include", "README*"
-                ], capture_output=True, text=True, timeout=60)
+                self.logger.error(f"数据集下载失败: {result.stderr}")
+                return {}
             
-            if result.returncode != 0:
-                # 策略3: 不指定include，让系统自动选择
-                self.logger.info("尝试基础下载...")
-                result = subprocess.run([
-                    "modelscope", "download", 
-                    "--dataset", self.repo_id,
-                    "--cache_dir", cache_dir
-                ], capture_output=True, text=True, timeout=300)  # 增加到5分钟
-            
-            if result.returncode != 0:
-                self.logger.error(f"所有下载策略都失败: {result.stderr}")
-                # 最后的策略：使用Python SDK直接获取文件列表
-                return self.get_repository_structure_via_sdk()
+            self.logger.info("数据集下载成功，开始分析结构...")
             
             # 分析下载的文件结构
             repo_structure = {"folders": {}, "files": []}
             
             if os.path.exists(cache_dir):
-                # 查找实际的数据集目录（可能在子目录中）
-                dataset_dir = cache_dir
+                self.logger.info(f"缓存目录: {cache_dir}")
+                
+                # 遍历整个缓存目录来找到真实的数据集内容
+                dataset_base_dir = None
+                
+                # 寻找数据集的实际目录
                 for root, dirs, files in os.walk(cache_dir):
-                    if files:  # 找到第一个包含文件的目录
-                        dataset_dir = root
+                    # 检查是否包含 datasets--{user}--{repo} 格式的目录
+                    for d in dirs:
+                        if d.startswith("datasets--") and "3k-animation-mkv-av1" in d:
+                            potential_dataset_dir = os.path.join(root, d)
+                            self.logger.info(f"找到可能的数据集目录: {potential_dataset_dir}")
+                            
+                            # 进一步查找实际的内容目录
+                            for sub_root, sub_dirs, sub_files in os.walk(potential_dataset_dir):
+                                if sub_files:  # 如果有文件，这可能是内容目录
+                                    dataset_base_dir = sub_root
+                                    self.logger.info(f"找到数据集内容目录: {dataset_base_dir}")
+                                    break
+                            if dataset_base_dir:
+                                break
+                    if dataset_base_dir:
                         break
                 
-                self.logger.info(f"分析数据集目录: {dataset_dir}")
+                # 如果没找到特殊结构，使用整个缓存目录
+                if not dataset_base_dir:
+                    dataset_base_dir = cache_dir
+                    self.logger.info(f"使用默认缓存目录: {dataset_base_dir}")
                 
-                for root, dirs, files in os.walk(dataset_dir):
+                # 现在分析真实的文件结构
+                video_extensions = ['.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm', '.m4v']
+                folder_file_count = {}
+                
+                for root, dirs, files in os.walk(dataset_base_dir):
                     for file in files:
                         file_path = os.path.join(root, file)
-                        rel_path = os.path.relpath(file_path, dataset_dir)
+                        rel_path = os.path.relpath(file_path, dataset_base_dir)
                         
                         # 跳过隐藏文件和系统文件
-                        if rel_path.startswith('.') or 'git' in rel_path.lower():
+                        if rel_path.startswith('.') or any(x in rel_path.lower() for x in ['git', '__pycache__', '.cache']):
                             continue
+                        
+                        # 只处理视频文件或者看起来像内容的文件
+                        file_ext = os.path.splitext(file.lower())[1]
+                        if file_ext not in video_extensions and len(rel_path.split('/')) < 2:
+                            continue  # 跳过根目录的非视频文件
                         
                         # 获取文件信息
                         try:
@@ -180,9 +190,9 @@ class ModelScopeMonitor:
                             # 按文件夹分组
                             folder = os.path.dirname(rel_path)
                             if folder and folder != '.':
-                                # 处理嵌套文件夹路径
+                                # 只取第一级文件夹作为系列名
                                 folder_parts = folder.split(os.sep)
-                                main_folder = folder_parts[0]  # 使用顶级文件夹作为系列名
+                                main_folder = folder_parts[0]
                                 
                                 if main_folder not in repo_structure["folders"]:
                                     repo_structure["folders"][main_folder] = {
@@ -205,16 +215,15 @@ class ModelScopeMonitor:
             
             folder_count = len(repo_structure['folders'])
             file_count = len(repo_structure['files'])
-            self.logger.info(f"CLI方法发现 {folder_count} 个文件夹, {file_count} 个文件")
+            self.logger.info(f"解析完成: {folder_count} 个文件夹, {file_count} 个文件")
             
-            # 如果CLI方法没找到有效结构，尝试SDK方法
-            if folder_count == 0:
-                self.logger.info("CLI方法未获取到文件夹结构，尝试SDK方法...")
-                return self.get_repository_structure_via_sdk()
+            # 显示前几个文件夹作为验证
+            for i, (folder_name, folder_info) in enumerate(list(repo_structure['folders'].items())[:5]):
+                size_mb = folder_info['total_size'] / (1024**2)
+                self.logger.info(f"  📁 {folder_name}: {folder_info['file_count']} 文件, {size_mb:.1f} MB")
             
-            # 显示前几个文件夹作为调试信息
-            for i, (folder_name, folder_info) in enumerate(list(repo_structure['folders'].items())[:3]):
-                self.logger.info(f"  📁 {folder_name}: {folder_info['file_count']} 文件, {folder_info['total_size']/(1024**2):.1f} MB")
+            if folder_count > 5:
+                self.logger.info(f"  ... 还有 {folder_count - 5} 个文件夹")
             
             return repo_structure
         
@@ -222,48 +231,7 @@ class ModelScopeMonitor:
             self.logger.error(f"获取仓库结构失败: {e}")
             import traceback
             self.logger.error(f"详细错误: {traceback.format_exc()}")
-            # 尝试备用方法
-            return self.get_repository_structure_via_sdk()
-    
-    def get_repository_structure_via_sdk(self) -> Dict:
-        """使用SDK方法获取仓库结构（备用方案）"""
-        try:
-            self.logger.info("使用SDK方法获取仓库结构...")
-            
-            repo_structure = {"folders": {}, "files": []}
-            
-            # 如果配置了手动文件夹列表，使用它作为备用
-            if Config.USE_MANUAL_FOLDER_LIST and Config.MANUAL_FOLDER_LIST:
-                self.logger.info("使用手动配置的文件夹列表...")
-                
-                for folder_config in Config.MANUAL_FOLDER_LIST:
-                    folder_name = folder_config["name"]
-                    priority = folder_config.get("priority", 2)
-                    
-                    # 创建一个模拟的文件夹结构
-                    repo_structure["folders"][folder_name] = {
-                        "files": [],
-                        "total_size": 1024 * 1024 * 1024,  # 假设1GB
-                        "last_modified": time.time(),
-                        "file_count": 10,  # 假设10个文件
-                        "priority": priority
-                    }
-                
-                self.logger.info(f"手动配置加载了 {len(repo_structure['folders'])} 个文件夹")
-                return repo_structure
-            
-            # 如果没有手动配置，尝试其他方法
-            self.logger.warning("没有手动配置的文件夹列表")
-            self.logger.info("建议：")
-            self.logger.info("1. 在config/config.py中配置MANUAL_FOLDER_LIST")
-            self.logger.info("2. 手动检查仓库内容")
-            self.logger.info("3. 或者等待网络改善后重试")
-            
-            return repo_structure
-        
-        except Exception as e:
-            self.logger.error(f"SDK方法也失败: {e}")
-            return {"folders": {}, "files": []}
+            return {}
     
     def calculate_folder_hash(self, folder_info: Dict) -> str:
         """计算文件夹的hash值（基于文件列表和大小）"""
