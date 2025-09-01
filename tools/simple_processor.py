@@ -191,15 +191,32 @@ class SimpleVideoWorker:
             file_size = os.path.getsize(local_path)
             self.logger.info(f"  文件大小: {file_size // 1024 // 1024} MB")
             
-            # 使用正确的ModelScope CLI上传命令格式
+            # 方案1: 尝试CLI上传
+            if self._upload_via_cli(local_path, repo_path, file_size):
+                return True
+            
+            # 方案2: CLI失败时使用SDK上传
+            self.logger.warning("🔄 CLI上传失败，尝试SDK上传...")
+            return self._upload_via_sdk(local_path, repo_path, file_size)
+                
+        except Exception as e:
+            self.logger.error(f"💥 上传流程异常: {e}")
+            return False
+    
+    def _upload_via_cli(self, local_path: str, repo_path: str, file_size: int) -> bool:
+        """通过CLI上传"""
+        try:
+            # 使用正确的ModelScope CLI上传命令格式 - 数据集上传
             cmd = [
                 "modelscope", "upload",
-                self.output_repo_id,
-                local_path,
-                repo_path
+                self.output_repo_id,        # repo_id
+                local_path,                 # local_path  
+                repo_path,                  # path_in_repo
+                "--repo-type", "dataset",   # 指定为数据集仓库
+                "--commit-message", f"Upload converted video: {os.path.basename(repo_path)}"
             ]
             
-            self.logger.info(f"上传命令: {' '.join(cmd)}")
+            self.logger.info(f"🚀 CLI上传命令: {' '.join(cmd)}")
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
             
@@ -210,17 +227,39 @@ class SimpleVideoWorker:
                 self.logger.error(f"命令错误: {result.stderr}")
             
             if result.returncode == 0:
-                self.logger.info(f"上传成功: {repo_path} ({file_size // 1024 // 1024} MB)")
+                self.logger.info(f"✅ CLI上传成功: {repo_path} ({file_size // 1024 // 1024} MB)")
                 return True
             else:
-                self.logger.error(f"上传失败，返回码: {result.returncode}")
+                self.logger.error(f"❌ CLI上传失败，返回码: {result.returncode}")
                 return False
                 
         except subprocess.TimeoutExpired:
-            self.logger.error(f"上传超时: {repo_path}")
+            self.logger.error(f"⏰ CLI上传超时: {repo_path}")
             return False
         except Exception as e:
-            self.logger.error(f"上传异常: {e}")
+            self.logger.error(f"💥 CLI上传异常: {e}")
+            return False
+    
+    def _upload_via_sdk(self, local_path: str, repo_path: str, file_size: int) -> bool:
+        """通过SDK上传"""
+        try:
+            self.logger.info(f"🔧 SDK上传: {repo_path}")
+            
+            # 使用ModelScopeManager的API上传
+            self.modelscope_manager.api.upload_file(
+                path_or_fileobj=local_path,
+                path_in_repo=repo_path,
+                repo_id=self.output_repo_id,
+                repo_type='dataset',
+                commit_message=f'Upload converted video: {os.path.basename(repo_path)}',
+                disable_tqdm=True
+            )
+            
+            self.logger.info(f"✅ SDK上传成功: {repo_path} ({file_size // 1024 // 1024} MB)")
+            return True
+            
+        except Exception as e:
+            self.logger.error(f"❌ SDK上传失败: {e}")
             return False
     
     def _cleanup_temp_files(self, *file_paths):
