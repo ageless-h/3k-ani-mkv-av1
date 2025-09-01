@@ -137,9 +137,13 @@ class SimpleVideoWorker:
     def _convert_video(self, input_path: str) -> Optional[str]:
         """转换视频格式"""
         try:
-            # 生成输出文件名
-            input_filename = os.path.basename(input_path)
-            output_filename = self.video_processor.get_output_filename(input_filename)
+            # 生成输出文件名 - 从原始文件名获取，不是从本地文件名
+            original_filename = os.path.basename(input_path)
+            # 去掉input_前缀
+            if original_filename.startswith("input_"):
+                original_filename = original_filename[6:]  # 去掉"input_"
+            
+            output_filename = self.video_processor.get_output_filename(original_filename)
             output_path = os.path.join(self.temp_dir, f"output_{output_filename}")
             
             # 执行转换
@@ -167,13 +171,15 @@ class SimpleVideoWorker:
     def _upload_converted_video(self, local_path: str, repo_path: str) -> bool:
         """上传转换后的视频"""
         try:
-            # 使用ModelScope CLI上传
+            # 使用正确的ModelScope CLI上传命令格式
             cmd = [
                 "modelscope", "upload",
-                "--dataset", self.monitor.repo_id,
-                "--local_path", local_path,
-                "--remote_path", repo_path
+                self.monitor.repo_id,
+                local_path,
+                repo_path
             ]
+            
+            self.logger.info(f"上传命令: {' '.join(cmd)}")
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
             
