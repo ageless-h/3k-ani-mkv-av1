@@ -110,8 +110,8 @@ class SimpleVideoMonitor:
             result = subprocess.run([
                 "modelscope", "download",
                 self.repo_id,                   # repo_id (位置参数)
-                cache_dir,                      # local_path (位置参数)
                 "--repo-type", "dataset",       # 指定为数据集仓库
+                "--local_dir", cache_dir,       # 本地目录
                 "--include", "**/*.mp4",        # 包含所有视频格式
                 "--include", "**/*.mkv", 
                 "--include", "**/*.rmvb",
@@ -126,8 +126,8 @@ class SimpleVideoMonitor:
                 result = subprocess.run([
                     "modelscope", "download",
                     self.repo_id,               # repo_id (位置参数)
-                    cache_dir,                  # local_path (位置参数)
                     "--repo-type", "dataset",   # 指定为数据集仓库
+                    "--local_dir", cache_dir,   # 本地目录
                     "--token", self.token       # 明确指定token
                 ], capture_output=True, text=True, timeout=600)
             

@@ -111,8 +111,8 @@ class SimpleVideoWorker:
             cmd = [
                 "modelscope", "download",
                 self.input_repo_id,             # repo_id (位置参数)
-                self.temp_dir,                  # local_path (位置参数)  
                 "--repo-type", "dataset",       # 指定为数据集仓库
+                "--local_dir", self.temp_dir,   # 本地目录
                 "--include", video_path,        # 只下载指定文件
                 "--token", self.config.MODELSCOPE_TOKEN  # 明确指定token
             ]

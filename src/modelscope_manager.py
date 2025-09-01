@@ -85,10 +85,10 @@ class ModelScopeManager:
                     
                     download_cmd = [
                         "modelscope", "download",
-                        self.input_repo,
-                        repo_path,
-                        "--cache_dir", self.cache_dir,
-                        "--local_dir", batch_dir
+                        self.input_repo,            # repo_id
+                        "--repo-type", "dataset",   # 数据集类型
+                        "--local_dir", batch_dir,   # 本地目录
+                        "--include", repo_path      # 包含指定文件
                     ]
                     
                     import subprocess
@@ -231,8 +231,11 @@ class ModelScopeManager:
                 # 尝试获取仓库信息
                 import subprocess
                 result = subprocess.run([
-                    "modelscope", "download", repo_id, "--include", "README.md",
-                    "--cache_dir", self.cache_dir
+                    "modelscope", "download", 
+                    repo_id, 
+                    "--repo-type", "dataset",
+                    "--include", "README.md",
+                    "--local_dir", self.cache_dir
                 ], capture_output=True, text=True, timeout=30)
                 
                 repos_status[repo_name] = result.returncode == 0
@@ -267,9 +270,10 @@ class ModelScopeManager:
                 
                 download_cmd = [
                     "modelscope", "download",
-                    self.input_repo,
-                    "filelist.txt",
-                    "--cache_dir", self.cache_dir
+                    self.input_repo,            # repo_id
+                    "--repo-type", "dataset",   # 数据集类型
+                    "--include", "filelist.txt", # 包含文件列表
+                    "--local_dir", self.cache_dir # 本地目录
                 ]
                 
                 import subprocess
