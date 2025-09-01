@@ -28,7 +28,7 @@ class SimpleVideoMonitor:
     
     def __init__(self):
         self.config = Config()
-        self.logger = setup_logging('simple_monitor')
+        self.logger = setup_logging('video_monitor')
         
         # 仓库信息 - 使用输入仓库ID
         self.repo_id = self.config.INPUT_REPO_ID

@@ -25,16 +25,12 @@ class SimpleVideoSystem:
     """简化视频处理系统"""
     
     def __init__(self):
-        # 创建统一的logger
+        # 创建主系统logger
         self.logger = setup_logging('simple_system')
         
-        # 初始化组件
+        # 初始化组件（每个组件有自己的logger名称）
         self.monitor = SimpleVideoMonitor()
         self.worker = SimpleVideoWorker()
-        
-        # 只禁用重复的logger，保留主要功能日志
-        # 禁用monitor的重复日志，但保留worker的处理日志
-        self.monitor.logger.disabled = True
         
         # 线程控制
         self.running = False

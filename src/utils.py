@@ -6,9 +6,15 @@ from pathlib import Path
 from typing import List, Dict, Any
 from datetime import datetime
 
-def setup_logging(log_file: str = None) -> logging.Logger:
+def setup_logging(name: str = 'animation_processor') -> logging.Logger:
     """设置日志系统"""
-    logger = logging.getLogger('animation_processor')
+    # 使用提供的名称创建logger
+    logger = logging.getLogger(name)
+    
+    # 防止重复添加handler
+    if logger.handlers:
+        return logger
+    
     logger.setLevel(logging.INFO)
     
     formatter = logging.Formatter(
@@ -20,11 +26,8 @@ def setup_logging(log_file: str = None) -> logging.Logger:
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     
-    # 文件处理器
-    if log_file:
-        file_handler = logging.FileHandler(log_file, encoding='utf-8')
-        file_handler.setFormatter(formatter)
-        logger.addHandler(file_handler)
+    # 防止向父logger传播（避免重复输出）
+    logger.propagate = False
     
     return logger
 

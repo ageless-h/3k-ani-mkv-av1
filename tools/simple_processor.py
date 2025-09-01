@@ -29,10 +29,10 @@ class SimpleVideoWorker:
     
     def __init__(self):
         self.config = Config()
-        self.logger = setup_logging('simple_worker')
+        self.logger = setup_logging('video_worker')
 
         # 初始化组件
-        self.video_processor = SimpleVideoProcessor(self.logger)
+        self.video_processor = SimpleVideoProcessor(setup_logging('video_processor'))
         # ModelScope管理器需要token参数
         self.modelscope_manager = ModelScopeManager(self.config.MODELSCOPE_TOKEN)
         self.monitor = SimpleVideoMonitor()
