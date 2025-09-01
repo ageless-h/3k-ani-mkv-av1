@@ -105,17 +105,19 @@ class SimpleVideoMonitor:
                 import shutil
                 shutil.rmtree(cache_dir)
             
-            # 使用正确的ModelScope CLI下载方式
-            # 1. 先尝试下载所有视频文件
+            # 使用正确的ModelScope CLI下载命令格式
+            # 1. 先尝试下载所有视频文件  
             result = subprocess.run([
                 "modelscope", "download",
-                "--dataset", self.repo_id,
-                "--local_dir", cache_dir,
-                "--include", "**/*.mp4",
+                self.repo_id,                   # repo_id (位置参数)
+                cache_dir,                      # local_path (位置参数)
+                "--repo-type", "dataset",       # 指定为数据集仓库
+                "--include", "**/*.mp4",        # 包含所有视频格式
                 "--include", "**/*.mkv", 
                 "--include", "**/*.rmvb",
                 "--include", "**/*.avi",
-                "--include", "**/*.mov"
+                "--include", "**/*.mov",
+                "--token", self.token           # 明确指定token
             ], capture_output=True, text=True, timeout=600)
             
             if result.returncode != 0:
@@ -123,8 +125,10 @@ class SimpleVideoMonitor:
                 # 如果包含模式失败，尝试完整下载
                 result = subprocess.run([
                     "modelscope", "download",
-                    "--dataset", self.repo_id,
-                    "--local_dir", cache_dir
+                    self.repo_id,               # repo_id (位置参数)
+                    cache_dir,                  # local_path (位置参数)
+                    "--repo-type", "dataset",   # 指定为数据集仓库
+                    "--token", self.token       # 明确指定token
                 ], capture_output=True, text=True, timeout=600)
             
             if result.returncode != 0:

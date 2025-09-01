@@ -107,12 +107,14 @@ class SimpleVideoWorker:
             filename = os.path.basename(video_path)
             local_path = os.path.join(self.temp_dir, f"input_{filename}")
             
-            # 使用ModelScope CLI下载单个文件
+            # 使用正确的ModelScope CLI下载命令格式
             cmd = [
                 "modelscope", "download",
-                "--dataset", self.input_repo_id,
-                "--include", video_path,
-                "--cache_dir", self.temp_dir
+                self.input_repo_id,             # repo_id (位置参数)
+                self.temp_dir,                  # local_path (位置参数)  
+                "--repo-type", "dataset",       # 指定为数据集仓库
+                "--include", video_path,        # 只下载指定文件
+                "--token", self.config.MODELSCOPE_TOKEN  # 明确指定token
             ]
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)  # 30分钟超时
@@ -123,20 +125,22 @@ class SimpleVideoWorker:
                     for file in files:
                         if file == filename or file.endswith(filename):
                             downloaded_path = os.path.join(root, file)
-                            # 移动到标准位置
-                            os.rename(downloaded_path, local_path)
-                            self.logger.info(f"下载成功: {filename} ({os.path.getsize(local_path) // 1024 // 1024} MB)")
-                            return local_path
+                            # 重命名为期望的文件名
+                            final_path = os.path.join(self.temp_dir, f"input_{filename}")
+                            if downloaded_path != final_path:
+                                import shutil
+                                shutil.move(downloaded_path, final_path)
+                            
+                            file_size = os.path.getsize(final_path)
+                            self.logger.info(f"下载成功: {filename} ({file_size // 1024 // 1024} MB)")
+                            return final_path
                 
-                self.logger.error(f"下载后未找到文件: {filename}")
+                self.logger.error(f"下载完成但未找到文件: {filename}")
                 return None
             else:
-                self.logger.error(f"下载命令失败: {result.stderr}")
+                self.logger.error(f"下载失败: {result.stderr}")
                 return None
                 
-        except subprocess.TimeoutExpired:
-            self.logger.error(f"下载超时: {video_path}")
-            return None
         except Exception as e:
             self.logger.error(f"下载异常: {e}")
             return None
@@ -209,11 +213,12 @@ class SimpleVideoWorker:
             # 使用正确的ModelScope CLI上传命令格式 - 数据集上传
             cmd = [
                 "modelscope", "upload",
-                self.output_repo_id,        # repo_id
-                local_path,                 # local_path  
-                repo_path,                  # path_in_repo
+                self.output_repo_id,        # repo_id (位置参数)
+                local_path,                 # local_path (位置参数)
+                repo_path,                  # path_in_repo (位置参数)
                 "--repo-type", "dataset",   # 指定为数据集仓库
-                "--commit-message", f"Upload converted video: {os.path.basename(repo_path)}"
+                "--commit-message", f"Upload converted video: {os.path.basename(repo_path)}",
+                "--token", self.config.MODELSCOPE_TOKEN  # 明确指定token
             ]
             
             self.logger.info(f"🚀 CLI上传命令: {' '.join(cmd)}")
