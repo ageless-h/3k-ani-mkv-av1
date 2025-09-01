@@ -1,36 +1,25 @@
+# -*- coding: utf-8 -*-
 """
-3K Animation MKV-AV1 Processing System
-
-A comprehensive system for processing animation videos:
-- Convert videos to MKV+AV1 format
-- Extract scene frames using PySceneDetect
-- Compress images to WebP format
-- Archive processed data
+简化版动画处理系统包初始化
 """
 
-__version__ = "1.0.0"
-__author__ = "ageless-h"
-
-# 导入主要模块
-from .main import AnimationProcessor
-from .video_processor import VideoProcessor
-from .image_processor import ImageProcessor
-from .archive_manager import ArchiveManager
-from .modelscope_manager import ModelScopeManager
+# 只导入简化系统需要的基础组件
 from .utils import setup_logging, check_free_space, load_video_list
+from .simple_processor import SimpleVideoProcessor
 
-# 移除已弃用的NAS网络工具
-_NAS_AVAILABLE = False
+# 可选导入ModelScope管理器（如果需要的话）
+try:
+    from .modelscope_manager import ModelScopeManager
+    _MODELSCOPE_AVAILABLE = True
+except ImportError:
+    _MODELSCOPE_AVAILABLE = False
 
 __all__ = [
-    'AnimationProcessor',
-    'VideoProcessor',
-    'ImageProcessor',
-    'ArchiveManager',
-    'ModelScopeManager',
+    'SimpleVideoProcessor',
     'setup_logging',
-    'check_free_space',
+    'check_free_space', 
     'load_video_list'
 ]
 
-# NAS模式已弃用，推荐使用ModelScope模式 
+if _MODELSCOPE_AVAILABLE:
+    __all__.append('ModelScopeManager') 
