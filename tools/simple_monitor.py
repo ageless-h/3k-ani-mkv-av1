@@ -268,12 +268,32 @@ class SimpleVideoMonitor:
         """标记视频为已处理"""
         self.processed_videos.add(video_path)
         
-        # 从队列中移除
+        # 确保从队列中移除（防护性代码）
+        original_length = len(self.video_queue)
         self.video_queue = [item for item in self.video_queue if item["path"] != video_path]
+        removed = original_length - len(self.video_queue)
         
         self.save_state()
-        self.save_queue()
+        if removed > 0:
+            self.save_queue()
+            self.logger.debug(f"从队列中移除了 {removed} 个重复项: {video_path}")
+        
         self.logger.info(f"标记为已处理: {video_path}")
+    
+    def mark_video_failed(self, video_path: str):
+        """标记视频处理失败，添加到已处理列表避免重复尝试"""
+        self.processed_videos.add(video_path)
+        
+        # 确保从队列中移除
+        original_length = len(self.video_queue)
+        self.video_queue = [item for item in self.video_queue if item["path"] != video_path]
+        removed = original_length - len(self.video_queue)
+        
+        self.save_state()
+        if removed > 0:
+            self.save_queue()
+        
+        self.logger.warning(f"标记为失败: {video_path}")
     
     def initialize_from_existing(self):
         """从现有仓库初始化队列"""
@@ -338,9 +358,13 @@ class SimpleVideoMonitor:
             self.logger.error(f"监控异常: {e}")
     
     def get_next_video(self) -> Optional[Dict]:
-        """获取下一个要处理的视频"""
+        """获取下一个要处理的视频并从队列中移除"""
         if self.video_queue:
-            return self.video_queue[0]
+            # 获取并移除队列中的第一个视频
+            next_video = self.video_queue.pop(0)
+            self.save_queue()  # 立即保存队列状态
+            self.logger.debug(f"从队列中取出视频: {next_video['path']}")
+            return next_video
         return None
     
     def get_queue_status(self) -> Dict:

@@ -133,44 +133,57 @@ class SimpleVideoSystem:
         self.worker_thread = threading.Thread(target=worker_runner, daemon=True)
         self.worker_thread.start()
     
-    def run_system(self, initialize_first: bool = True):
-        """运行完整系统"""
+    def run_system(self, mode='full'):
+        """运行系统"""
+        self.logger.info(f"🚀 启动简化视频处理系统 (模式: {mode})")
+        
         try:
-            self.logger.info("=" * 60)
-            self.logger.info("🎯 简化视频处理系统启动")
-            self.logger.info("=" * 60)
-            
-            # 初始化队列
-            if initialize_first:
-                if not self.initialize_queue():
-                    self.logger.error("系统初始化失败，退出")
+            if mode in ['full', 'init-only']:
+                # 初始化阶段
+                self.logger.info("📊 初始化阶段...")
+                if not self.monitor.initialize_from_existing():
+                    self.logger.warning("⚠️ 初始化未发现新视频")
+                else:
+                    self.logger.info("✅ 初始化完成")
+                
+                if mode == 'init-only':
+                    status = self.monitor.get_queue_status()
+                    self.logger.info(f"📈 队列状态: {status['queue_size']} 待处理, {status['processed_count']} 已完成")
                     return
             
-            # 设置运行标志
+            # 启动工作线程
             self.running = True
             
-            # 启动监控和处理线程
-            self.start_monitor()
-            self.start_worker()
-            
-            self.logger.info("🚀 系统启动完成!")
-            self.logger.info("📝 按 Ctrl+C 停止系统")
+            if mode in ['full', 'no-init']:
+                # 启动监控线程
+                self.monitor_thread = threading.Thread(target=self._run_monitor, daemon=True)
+                self.monitor_thread.start()
+                self.logger.info("📡 监控线程已启动")
+                
+                # 启动工作线程  
+                self.worker_thread = threading.Thread(target=self._run_worker, daemon=True)
+                self.worker_thread.start()
+                self.logger.info("⚙️ 工作线程已启动")
             
             # 主循环 - 定期显示状态
-            try:
-                while self.running:
-                    time.sleep(60)  # 每分钟显示一次状态
+            last_status_time = time.time()
+            while self.running:
+                time.sleep(10)  # 每10秒检查一次
+                
+                # 每60秒显示一次详细状态
+                current_time = time.time()
+                if current_time - last_status_time >= 60:
                     status = self.monitor.get_queue_status()
-                    
-                    if status['queue_size'] > 0 or status['processed_count'] > 0:
-                        self.logger.info(f"📊 系统状态: {status['processed_count']} 已完成, {status['queue_size']} 待处理")
-                    
-            except KeyboardInterrupt:
-                self.logger.info("接收到停止信号...")
-            
+                    self.logger.info(f"📊 系统状态: {status['processed_count']} 已完成, {status['queue_size']} 待处理")
+                    if status['next_videos']:
+                        next_video = status['next_videos'][0]['path'] if status['next_videos'] else "无"
+                        self.logger.info(f"🎯 下一个视频: {next_video}")
+                    last_status_time = current_time
+                
+        except KeyboardInterrupt:
+            self.logger.info("🛑 系统停止中...")
         except Exception as e:
-            self.logger.error(f"系统异常: {e}")
-        
+            self.logger.error(f"💥 系统异常: {e}")
         finally:
             self.stop_system()
     
@@ -205,23 +218,26 @@ class SimpleVideoSystem:
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(description="简化视频处理系统")
-    parser.add_argument("--no-init", action="store_true", help="跳过初始化队列，只处理新增视频")
-    parser.add_argument("--status", action="store_true", help="显示系统状态")
-    parser.add_argument("--init-only", action="store_true", help="只初始化队列，不启动处理")
+    import argparse
+    
+    parser = argparse.ArgumentParser(description='简化视频处理系统')
+    parser.add_argument('--mode', choices=['full', 'no-init', 'init-only', 'status'], 
+                       default='full', help='运行模式')
     
     args = parser.parse_args()
     
     system = SimpleVideoSystem()
     
-    if args.status:
-        system.show_status()
-    elif args.init_only:
-        system.initialize_queue()
+    if args.mode == 'status':
+        # 只显示状态
+        status = system.monitor.get_queue_status()
+        print(f"📊 队列状态: {status['queue_size']} 待处理, {status['processed_count']} 已完成")
+        if status['next_videos']:
+            print("🎯 下一批视频:")
+            for i, video in enumerate(status['next_videos'][:5], 1):
+                print(f"  {i}. {video['path']}")
     else:
-        # 正常运行模式
-        initialize_first = not args.no_init
-        system.run_system(initialize_first)
+        system.run_system(args.mode)
 
 
 if __name__ == "__main__":

@@ -292,42 +292,46 @@ class SimpleVideoWorker:
     
     def run_worker(self):
         """运行工作器 - 持续处理队列中的视频"""
-        self.logger.info("启动简化视频处理工作器...")
+        self.logger.info("启动视频处理工作器...")
         
         try:
             while True:
-                # 获取下一个要处理的视频
+                # 获取下一个视频（会自动从队列中移除）
                 next_video = self.monitor.get_next_video()
                 
                 if next_video:
+                    video_path = next_video['path']
+                    self.logger.info(f"🎬 开始处理: {video_path}")
+                    
                     # 处理视频
                     success = self.process_single_video(next_video)
                     
                     if success:
-                        self.logger.info(f"✅ 处理成功: {next_video['path']}")
+                        self.logger.info(f"✅ 处理成功: {video_path}")
+                        # process_single_video内部已经调用了mark_video_processed
                     else:
-                        self.logger.error(f"❌ 处理失败: {next_video['path']}")
-                        # 失败的视频暂时跳过，避免死循环
-                        self.monitor.mark_video_processed(next_video['path'])
+                        self.logger.error(f"❌ 处理失败: {video_path}")
+                        # 标记为失败，避免重复处理
+                        self.monitor.mark_video_failed(video_path)
                 else:
                     # 队列为空，等待一段时间
-                    self.logger.info("队列为空，等待新视频...")
+                    self.logger.info("📪 队列为空，等待新视频...")
                     time.sleep(30)
                 
-                # 显示队列状态
+                # 显示进度状态
                 status = self.monitor.get_queue_status()
-                self.logger.info(f"队列状态: {status['queue_size']} 待处理, {status['processed_count']} 已完成")
+                self.logger.info(f"📊 进度: {status['processed_count']} 已完成, {status['queue_size']} 待处理")
                 
         except KeyboardInterrupt:
-            self.logger.info("工作器已停止")
+            self.logger.info("🛑 工作器已停止")
         except Exception as e:
-            self.logger.error(f"工作器异常: {e}")
+            self.logger.error(f"💥 工作器异常: {e}")
         finally:
             # 清理工作目录
             try:
                 import shutil
                 shutil.rmtree(self.temp_dir)
-                self.logger.info(f"清理工作目录: {self.temp_dir}")
+                self.logger.info(f"🧹 清理工作目录: {self.temp_dir}")
             except:
                 pass
 
