@@ -30,8 +30,8 @@ class SimpleVideoMonitor:
         self.config = Config()
         self.logger = setup_logging('simple_monitor')
         
-        # 仓库信息
-        self.repo_id = "ageless/3k-animation-mkv-av1"
+        # 仓库信息 - 使用输入仓库ID
+        self.repo_id = self.config.INPUT_REPO_ID
         self.token = self.config.MODELSCOPE_TOKEN
         
         # 监控状态文件

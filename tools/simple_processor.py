@@ -30,16 +30,23 @@ class SimpleVideoWorker:
     def __init__(self):
         self.config = Config()
         self.logger = setup_logging('simple_worker')
-        
+
         # 初始化组件
         self.video_processor = SimpleVideoProcessor(self.logger)
         # ModelScope管理器需要token参数
         self.modelscope_manager = ModelScopeManager(self.config.MODELSCOPE_TOKEN)
         self.monitor = SimpleVideoMonitor()
-        
+
         # 工作目录
         self.temp_dir = tempfile.mkdtemp(prefix="simple_video_")
         self.logger.info(f"工作目录: {self.temp_dir}")
+
+        # 仓库配置
+        self.input_repo_id = self.config.INPUT_REPO_ID   # 下载用
+        self.output_repo_id = self.config.OUTPUT_REPO_ID  # 上传用
+        
+        # 确保ModelScope CLI已登录
+        self._ensure_modelscope_login()
     
     def process_single_video(self, video_info: Dict) -> bool:
         """
@@ -103,7 +110,7 @@ class SimpleVideoWorker:
             # 使用ModelScope CLI下载单个文件
             cmd = [
                 "modelscope", "download",
-                "--dataset", self.monitor.repo_id,
+                "--dataset", self.input_repo_id,
                 "--include", video_path,
                 "--cache_dir", self.temp_dir
             ]
@@ -171,10 +178,23 @@ class SimpleVideoWorker:
     def _upload_converted_video(self, local_path: str, repo_path: str) -> bool:
         """上传转换后的视频"""
         try:
+            self.logger.info(f"准备上传文件:")
+            self.logger.info(f"  本地路径: {local_path}")
+            self.logger.info(f"  目标仓库: {self.output_repo_id}")
+            self.logger.info(f"  目标路径: {repo_path}")
+            
+            # 检查本地文件
+            if not os.path.exists(local_path):
+                self.logger.error(f"本地文件不存在: {local_path}")
+                return False
+                
+            file_size = os.path.getsize(local_path)
+            self.logger.info(f"  文件大小: {file_size // 1024 // 1024} MB")
+            
             # 使用正确的ModelScope CLI上传命令格式
             cmd = [
                 "modelscope", "upload",
-                self.monitor.repo_id,
+                self.output_repo_id,
                 local_path,
                 repo_path
             ]
@@ -183,12 +203,17 @@ class SimpleVideoWorker:
             
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=1800)
             
+            self.logger.info(f"命令返回码: {result.returncode}")
+            if result.stdout:
+                self.logger.info(f"命令输出: {result.stdout}")
+            if result.stderr:
+                self.logger.error(f"命令错误: {result.stderr}")
+            
             if result.returncode == 0:
-                file_size = os.path.getsize(local_path)
                 self.logger.info(f"上传成功: {repo_path} ({file_size // 1024 // 1024} MB)")
                 return True
             else:
-                self.logger.error(f"上传失败: {result.stderr}")
+                self.logger.error(f"上传失败，返回码: {result.returncode}")
                 return False
                 
         except subprocess.TimeoutExpired:
@@ -207,6 +232,24 @@ class SimpleVideoWorker:
                     self.logger.debug(f"清理文件: {os.path.basename(file_path)}")
                 except Exception as e:
                     self.logger.warning(f"清理失败 {file_path}: {e}")
+    
+    def _ensure_modelscope_login(self):
+        """确保ModelScope CLI已登录"""
+        try:
+            self.logger.info("检查ModelScope CLI登录状态...")
+            # ModelScopeManager初始化时已经登录，这里通过CLI命令确认
+            result = subprocess.run(
+                ["modelscope", "login", "--token", self.config.MODELSCOPE_TOKEN],
+                capture_output=True, text=True, timeout=30
+            )
+            if result.returncode == 0:
+                self.logger.info("✅ ModelScope CLI已登录")
+            else:
+                self.logger.warning(f"CLI登录警告: {result.stderr}")
+                self.logger.info("继续使用SDK登录...")
+        except Exception as e:
+            self.logger.warning(f"CLI登录检查失败: {e}")
+            self.logger.info("继续使用SDK登录...")
     
     def run_worker(self):
         """运行工作器 - 持续处理队列中的视频"""

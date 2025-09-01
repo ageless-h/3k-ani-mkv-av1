@@ -28,14 +28,13 @@ class SimpleVideoSystem:
         # 创建统一的logger
         self.logger = setup_logging('simple_system')
         
-        # 初始化组件 - 不传递logger避免重复日志
+        # 初始化组件
         self.monitor = SimpleVideoMonitor()
         self.worker = SimpleVideoWorker()
         
-        # 禁用组件的重复日志
+        # 只禁用重复的logger，保留主要功能日志
+        # 禁用monitor的重复日志，但保留worker的处理日志
         self.monitor.logger.disabled = True
-        self.worker.logger.disabled = True
-        self.worker.video_processor.logger.disabled = True
         
         # 线程控制
         self.running = False
