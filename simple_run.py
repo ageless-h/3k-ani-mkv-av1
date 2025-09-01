@@ -90,44 +90,46 @@ class SimpleVideoSystem:
         self.monitor_thread = threading.Thread(target=monitor_worker, daemon=True)
         self.monitor_thread.start()
     
-    def start_worker(self):
-        """启动处理线程"""
-        def worker_runner():
-            self.logger.info("🔧 启动视频处理器...")
-            try:
-                while self.running:
-                    # 获取下一个要处理的视频
-                    next_video = self.monitor.get_next_video()
-                    
-                    if next_video:
-                        # 处理视频
-                        self.logger.info(f"🎬 开始处理: {next_video['path']}")
-                        success = self.worker.process_single_video(next_video)
-                        
-                        if success:
-                            self.logger.info(f"✅ 处理成功: {next_video['path']}")
-                        else:
-                            self.logger.error(f"❌ 处理失败: {next_video['path']}")
-                            # 失败的视频标记为已处理，避免死循环
-                            self.monitor.mark_video_processed(next_video['path'])
-                        
-                        # 显示进度
-                        status = self.monitor.get_queue_status()
-                        self.logger.info(f"📊 进度: {status['processed_count']} 已完成, {status['queue_size']} 待处理")
-                    
-                    else:
-                        # 队列为空，等待30秒
-                        self.logger.debug("队列为空，等待新视频...")
-                        for _ in range(30):
-                            if not self.running:
-                                break
-                            time.sleep(1)
+    def _run_monitor(self):
+        """监控线程的运行方法"""
+        self.logger.info("👁️  启动视频监控器...")
+        try:
+            while self.running:
+                # 执行一次监控检查
+                new_count = self.monitor.monitor_once()
                 
+                if new_count > 0:
+                    self.logger.info(f"🆕 发现 {new_count} 个新视频")
+                
+                # 等待5分钟后再次检查
+                for _ in range(300):  # 5分钟 = 300秒
+                    if not self.running:
+                        break
+                    time.sleep(1)
+            
+        except Exception as e:
+            self.logger.error(f"💥 监控器异常: {e}")
+    
+    def start_worker(self):
+        """启动工作线程"""
+        def worker_runner():
+            self.logger.info("⚙️  启动视频处理工作器...")
+            try:
+                self.worker.run_worker()
             except Exception as e:
-                self.logger.error(f"处理器异常: {e}")
+                self.logger.error(f"工作器异常: {e}")
         
         self.worker_thread = threading.Thread(target=worker_runner, daemon=True)
         self.worker_thread.start()
+        self.logger.info("⚙️  工作线程已启动")
+    
+    def _run_worker(self):
+        """工作线程的运行方法"""
+        self.logger.info("⚙️  启动视频处理工作器...")
+        try:
+            self.worker.run_worker()
+        except Exception as e:
+            self.logger.error(f"�� 工作器异常: {e}")
     
     def run_system(self, mode='full'):
         """运行系统"""
